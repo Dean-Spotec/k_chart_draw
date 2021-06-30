@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart'
     show Color, TextStyle, Rect, Canvas, Size, CustomPainter;
 import 'package:k_chart/utils/date_format_util.dart';
+import 'package:k_chart/utils/number_util.dart';
 
 import '../chart_style.dart' show ChartStyle;
 import '../entity/k_line_entity.dart';
@@ -28,7 +29,6 @@ abstract class BaseChartPainter extends CustomPainter {
   Rect? mVolRect, mSecondaryRect;
   late double mDisplayHeight, mWidth;
   double mTopPadding = 30.0, mBottomPadding = 20.0, mChildPadding = 12.0;
-  final int mGridRows = 4, mGridColumns = 4;
   int mStartIndex = 0, mStopIndex = 0;
   double mMainMaxValue = double.minPositive, mMainMinValue = double.maxFinite;
   double mVolMaxValue = double.minPositive, mVolMinValue = double.maxFinite;
@@ -43,6 +43,7 @@ abstract class BaseChartPainter extends CustomPainter {
   final ChartStyle chartStyle;
   late double mPointWidth;
   List<String> mFormats = [yyyy, '-', mm, '-', dd, ' ', HH, ':', nn]; //格式化时间
+  double mMarginRight = 0.0; //k线右边空出来的距离
 
   BaseChartPainter(
     this.chartStyle, {
@@ -85,6 +86,7 @@ abstract class BaseChartPainter extends CustomPainter {
     canvas.clipRect(Rect.fromLTRB(0, 0, size.width, size.height));
     mDisplayHeight = size.height - mTopPadding - mBottomPadding;
     mWidth = size.width;
+    mMarginRight = (mWidth / ChartStyle.gridColumns - mPointWidth) / scaleX;
     initRect(size);
     calculateValue();
     initChartRenderer();
@@ -96,11 +98,11 @@ abstract class BaseChartPainter extends CustomPainter {
     if (datas != null && datas!.isNotEmpty) {
       drawChart(canvas, size);
       drawRightText(canvas);
+      drawRealTimePrice(canvas);
       drawDate(canvas, size);
       if (isLongPress == true) drawCrossLineText(canvas, size);
       drawText(canvas, datas!.last, 5);
       drawMaxAndMin(canvas);
-      drawNowPrice(canvas);
     }
     canvas.restore();
   }
@@ -129,7 +131,7 @@ abstract class BaseChartPainter extends CustomPainter {
   void drawMaxAndMin(Canvas canvas);
 
   //画当前价格
-  void drawNowPrice(Canvas canvas);
+  void drawRealTimePrice(Canvas canvas);
 
   //交叉线值
   void drawCrossLineText(Canvas canvas, Size size);
@@ -311,7 +313,22 @@ abstract class BaseChartPainter extends CustomPainter {
   ///获取平移的最小值
   double getMinTranslateX() {
     var x = -mDataLen + mWidth / scaleX - mPointWidth / 2;
-    return x >= 0 ? 0.0 : x;
+    x = x >= 0 ? 0.0 : x;
+    if (datas == null || datas!.isEmpty) return x;
+    //数据不足一屏
+    if (x >= 0) {
+      if (mWidth / scaleX - getX(datas!.length) < mMarginRight) {
+        //数据填充后剩余空间比mMarginRight小，求出差。x-=差
+        x -= mMarginRight - mWidth / scaleX + getX(datas!.length);
+      } else {
+        //数据填充后剩余空间比Right大
+        mMarginRight = mWidth / scaleX - getX(datas!.length);
+      }
+    } else if (x < 0) {
+      //数据超过一屏
+      x -= mMarginRight;
+    }
+    return x;
   }
 
   ///计算长按后x的值，转换为index
@@ -332,6 +349,10 @@ abstract class BaseChartPainter extends CustomPainter {
 
   TextStyle getTextStyle(Color color) {
     return TextStyle(fontSize: 10.0, color: color);
+  }
+
+  String format(double n) {
+    return NumberUtil.format(n);
   }
 
   @override

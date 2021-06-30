@@ -14,7 +14,7 @@ import 'vol_renderer.dart';
 
 class ChartPainter extends BaseChartPainter {
   static get maxScrollX => BaseChartPainter.maxScrollX;
-  late BaseChartRenderer mMainRenderer;
+  late MainRenderer mMainRenderer;
   BaseChartRenderer? mVolRenderer, mSecondaryRenderer;
   StreamSink<InfoWindowEntity?>? sink;
   Color? upColor, dnColor;
@@ -28,25 +28,32 @@ class ChartPainter extends BaseChartPainter {
   Paint? selectPointPaint, selectorBorderPaint;
   final ChartStyle chartStyle;
   final bool hideGrid;
+  AnimationController? controller;
+  double opacity;
 
-  ChartPainter(
-    this.chartStyle,
-    this.chartColors, {
-    required datas,
-    required scaleX,
-    required scrollX,
-    required isLongPass,
-    required selectX,
-    mainState,
-    volHidden,
-    secondaryState,
-    this.sink,
-    bool isLine = false,
-    this.hideGrid = false,
-    this.bgColor,
-    this.fixedLength = 2,
-    this.maDayList = const [5, 10, 20],
-  })  : assert(bgColor == null || bgColor.length >= 2),
+  final Paint realTimePaint = Paint()
+        ..strokeWidth = 1.0
+        ..isAntiAlias = true,
+      pointPaint = Paint();
+
+  ChartPainter(this.chartStyle, this.chartColors,
+      {required datas,
+      required scaleX,
+      required scrollX,
+      required isLongPass,
+      required selectX,
+      mainState,
+      volHidden,
+      secondaryState,
+      this.sink,
+      bool isLine = false,
+      this.hideGrid = false,
+      this.bgColor,
+      this.fixedLength = 2,
+      this.maDayList = const [5, 10, 20],
+      this.controller,
+      this.opacity = 0.0})
+      : assert(bgColor == null || bgColor.length >= 2),
         super(chartStyle,
             datas: datas,
             scaleX: scaleX,
@@ -139,10 +146,13 @@ class ChartPainter extends BaseChartPainter {
 
   @override
   void drawGrid(canvas) {
-    if(!hideGrid) {
-      mMainRenderer.drawGrid(canvas, mGridRows, mGridColumns);
-      mVolRenderer?.drawGrid(canvas, mGridRows, mGridColumns);
-      mSecondaryRenderer?.drawGrid(canvas, mGridRows, mGridColumns);
+    if (!hideGrid) {
+      mMainRenderer.drawGrid(
+          canvas, ChartStyle.gridRows, ChartStyle.gridColumns);
+      mVolRenderer?.drawGrid(
+          canvas, ChartStyle.gridRows, ChartStyle.gridColumns);
+      mSecondaryRenderer?.drawGrid(
+          canvas, ChartStyle.gridRows, ChartStyle.gridColumns);
     }
   }
 
@@ -171,18 +181,18 @@ class ChartPainter extends BaseChartPainter {
   @override
   void drawRightText(canvas) {
     var textStyle = getTextStyle(this.chartColors.defaultTextColor);
-    mMainRenderer.drawRightText(canvas, textStyle, mGridRows);
-    mVolRenderer?.drawRightText(canvas, textStyle, mGridRows);
-    mSecondaryRenderer?.drawRightText(canvas, textStyle, mGridRows);
+    mMainRenderer.drawRightText(canvas, textStyle, ChartStyle.gridRows);
+    mVolRenderer?.drawRightText(canvas, textStyle, ChartStyle.gridRows);
+    mSecondaryRenderer?.drawRightText(canvas, textStyle, ChartStyle.gridRows);
   }
 
   @override
   void drawDate(Canvas canvas, Size size) {
-    double columnSpace = size.width / mGridColumns;
+    double columnSpace = size.width / ChartStyle.gridColumns;
     double startX = getX(mStartIndex) - mPointWidth / 2;
     double stopX = getX(mStopIndex) + mPointWidth / 2;
     double y = 0.0;
-    for (var i = 0; i <= mGridColumns; ++i) {
+    for (var i = 0; i <= ChartStyle.gridColumns; ++i) {
       double translateX = xToTranslateX(columnSpace * i);
       if (translateX >= startX && translateX <= stopX) {
         int index = indexOfTranslateX(translateX);
@@ -248,7 +258,8 @@ class ChartPainter extends BaseChartPainter {
       tp.paint(canvas, Offset(x + w1 + w2, y - textHeight / 2));
     }
 
-    TextPainter dateTp = getTextPainter(getDate(point.time), chartColors.crossTextColor);
+    TextPainter dateTp =
+        getTextPainter(getDate(point.time), chartColors.crossTextColor);
     textWidth = dateTp.width;
     r = textHeight / 2;
     x = translateXtoX(getX(index));
@@ -296,11 +307,13 @@ class ChartPainter extends BaseChartPainter {
     if (x < mWidth / 2) {
       //画右边
       TextPainter tp = getTextPainter(
-          "── " + mMainLowMinValue.toStringAsFixed(fixedLength), chartColors.minColor);
+          "── " + mMainLowMinValue.toStringAsFixed(fixedLength),
+          chartColors.minColor);
       tp.paint(canvas, Offset(x, y - tp.height / 2));
     } else {
       TextPainter tp = getTextPainter(
-          mMainLowMinValue.toStringAsFixed(fixedLength) + " ──", chartColors.minColor);
+          mMainLowMinValue.toStringAsFixed(fixedLength) + " ──",
+          chartColors.minColor);
       tp.paint(canvas, Offset(x - tp.width, y - tp.height / 2));
     }
     x = translateXtoX(getX(mMainMaxIndex));
@@ -308,31 +321,13 @@ class ChartPainter extends BaseChartPainter {
     if (x < mWidth / 2) {
       //画右边
       TextPainter tp = getTextPainter(
-          "── " + mMainHighMaxValue.toStringAsFixed(fixedLength), chartColors.maxColor);
+          "── " + mMainHighMaxValue.toStringAsFixed(fixedLength),
+          chartColors.maxColor);
       tp.paint(canvas, Offset(x, y - tp.height / 2));
     } else {
       TextPainter tp = getTextPainter(
-          mMainHighMaxValue.toStringAsFixed(fixedLength) + " ──", chartColors.maxColor);
-      tp.paint(canvas, Offset(x - tp.width, y - tp.height / 2));
-    }
-  }
-
-  @override
-  void drawNowPrice(Canvas canvas) {
-    if (isLine == true || datas == null) return;
-    double x = translateXtoX(getX(datas!.length - 1));
-    double value = datas![datas!.length - 1].close;
-    double y = getMainY(value);
-    if (x < mWidth / 2) {
-      //画右边
-      TextPainter tp = getTextPainter(
-          "------ " + value.toStringAsFixed(fixedLength),
-          this.chartColors.nowPriceColor);
-      tp.paint(canvas, Offset(x, y - tp.height / 2));
-    } else {
-      TextPainter tp = getTextPainter(
-          value.toStringAsFixed(fixedLength) + " ------",
-          this.chartColors.nowPriceColor);
+          mMainHighMaxValue.toStringAsFixed(fixedLength) + " ──",
+          chartColors.maxColor);
       tp.paint(canvas, Offset(x - tp.width, y - tp.height / 2));
     }
   }
@@ -369,6 +364,114 @@ class ChartPainter extends BaseChartPainter {
               center: Offset(x, y), height: 2.0, width: 2.0 / scaleX),
           paintX);
     }
+  }
+
+  ///画实时价格线
+  @override
+  void drawRealTimePrice(Canvas canvas) {
+    if (mMarginRight == 0 || datas == null || datas?.isEmpty == true) return;
+    KLineEntity point = datas!.last;
+    TextPainter tp =
+        getTextPainter(format(point.close), ChartColors.rightRealTimeTextColor);
+    double y = getMainY(point.close);
+    //max越往右边滑值越小
+    var max = (mTranslateX.abs() +
+            mMarginRight -
+            getMinTranslateX().abs() +
+            mPointWidth) *
+        scaleX;
+    double x = mWidth - max;
+    if (!isLine) x += mPointWidth / 2;
+    var dashWidth = 10;
+    var dashSpace = 5;
+    double startX = 0;
+    final space = (dashSpace + dashWidth);
+    if (tp.width < max) {
+      while (startX < max) {
+        canvas.drawLine(
+            Offset(x + startX, y),
+            Offset(x + startX + dashWidth, y),
+            realTimePaint..color = ChartColors.realTimeLineColor);
+        startX += space;
+      }
+      //画一闪一闪
+      if (isLine) {
+        startAnimation();
+        Gradient pointGradient = RadialGradient(
+            colors: [Colors.white.withOpacity(opacity), Colors.transparent]);
+        pointPaint.shader = pointGradient
+            .createShader(Rect.fromCircle(center: Offset(x, y), radius: 14.0));
+        canvas.drawCircle(Offset(x, y), 14.0, pointPaint);
+        canvas.drawCircle(
+            Offset(x, y), 2.0, realTimePaint..color = Colors.white);
+      } else {
+        stopAnimation(); //停止一闪闪
+      }
+      double left = mWidth - tp.width;
+      double top = y - tp.height / 2;
+      canvas.drawRect(
+          Rect.fromLTRB(left, top, left + tp.width, top + tp.height),
+          realTimePaint..color = ChartColors.realTimeBgColor);
+      tp.paint(canvas, Offset(left, top));
+    } else {
+      stopAnimation(); //停止一闪闪
+      startX = 0;
+      if (point.close > mMainMaxValue) {
+        y = getMainY(mMainMaxValue);
+      } else if (point.close < mMainMinValue) {
+        y = getMainY(mMainMinValue);
+      }
+      while (startX < mWidth) {
+        canvas.drawLine(Offset(startX, y), Offset(startX + dashWidth, y),
+            realTimePaint..color = ChartColors.realTimeLongLineColor);
+        startX += space;
+      }
+
+      const padding = 3.0;
+      const triangleHeight = 8.0; //三角高度
+      const triangleWidth = 5.0; //三角宽度
+
+      double left =
+          mWidth - mWidth / ChartStyle.gridColumns - tp.width / 2 - padding * 2;
+      double top = y - tp.height / 2 - padding;
+      //加上三角形的宽以及padding
+      double right = left + tp.width + padding * 2 + triangleWidth + padding;
+      double bottom = top + tp.height + padding * 2;
+      double radius = (bottom - top) / 2;
+      //画椭圆背景
+      RRect rectBg1 =
+          RRect.fromLTRBR(left, top, right, bottom, Radius.circular(radius));
+      RRect rectBg2 = RRect.fromLTRBR(left - 1, top - 1, right + 1, bottom + 1,
+          Radius.circular(radius + 2));
+      canvas.drawRRect(
+          rectBg2, realTimePaint..color = ChartColors.realTimeTextBorderColor);
+      canvas.drawRRect(
+          rectBg1, realTimePaint..color = ChartColors.realTimeBgColor);
+      tp = getTextPainter(format(point.close), ChartColors.realTimeTextColor);
+      Offset textOffset = Offset(left + padding, y - tp.height / 2);
+      tp.paint(canvas, textOffset);
+      //画三角
+      Path path = Path();
+      double dx = tp.width + textOffset.dx + padding;
+      double dy = top + (bottom - top - triangleHeight) / 2;
+      path.moveTo(dx, dy);
+      path.lineTo(dx + triangleWidth, dy + triangleHeight / 2);
+      path.lineTo(dx, dy + triangleHeight);
+      path.close();
+      canvas.drawPath(
+          path,
+          realTimePaint
+            ..color = ChartColors.realTimeTextColor
+            ..shader = null);
+    }
+  }
+
+  startAnimation() {
+    if (controller?.isAnimating != true) controller?.repeat(reverse: true);
+  }
+
+  stopAnimation() {
+    if (controller?.isAnimating == true) controller?.stop();
   }
 
   TextPainter getTextPainter(text, color) {

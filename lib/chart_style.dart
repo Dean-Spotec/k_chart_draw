@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart' show Color;
 
 class ChartColors {
-
   Color kLineColor = Color(0xff4C86CD);
   Color lineFillColor = Color(0x554C86CD);
   Color ma5Color = Color(0xffC9B885);
@@ -49,6 +48,16 @@ class ChartColors {
   Color maxColor = Color(0xffffffff);
   Color minColor = Color(0xffffffff);
 
+  //实时线颜色等
+  static const Color realTimeBgColor = Color(0xff0D1722);
+  static const Color rightRealTimeTextColor = Color(0xff4C86CD);
+  static const Color realTimeTextBorderColor = Color(0xffffffff);
+  static const Color realTimeTextColor = Color(0xffffffff);
+
+  //实时线
+  static const Color realTimeLineColor = Color(0xffffffff);
+  static const Color realTimeLongLineColor = Color(0xff4C86CD);
+
   Color getMAColor(int index) {
     Color maColor = ma5Color;
     switch (index % 3) {
@@ -87,4 +96,7 @@ class ChartStyle {
 
   //水平交叉线宽度
   double hCrossWidth = 0.5;
+
+  //网格
+  static const int gridRows = 3, gridColumns = 4;
 }

@@ -82,6 +82,8 @@ class _KChartWidgetState extends State<KChartWidget>
   double mWidth = 0;
   AnimationController? _controller;
   Animation<double>? aniX;
+  late AnimationController _currPriceController;
+  late Animation<double> _currPriceAnimation;
 
   double getMinScrollX() {
     return mScaleX;
@@ -94,6 +96,11 @@ class _KChartWidgetState extends State<KChartWidget>
   void initState() {
     super.initState();
     mInfoWindowStream = StreamController<InfoWindowEntity?>();
+    _currPriceController = AnimationController(
+        duration: const Duration(milliseconds: 850), vsync: this);
+    _currPriceAnimation = Tween(begin: 0.9, end: 0.1)
+        .animate(_currPriceController)
+          ..addListener(() => setState(() {}));
   }
 
   @override
@@ -106,6 +113,7 @@ class _KChartWidgetState extends State<KChartWidget>
   void dispose() {
     mInfoWindowStream?.close();
     _controller?.dispose();
+    _currPriceController.dispose();
     super.dispose();
   }
 
@@ -132,6 +140,8 @@ class _KChartWidgetState extends State<KChartWidget>
       bgColor: widget.bgColor,
       fixedLength: widget.fixedLength,
       maDayList: widget.maDayList,
+      controller: _currPriceController,
+      opacity: _currPriceAnimation.value,
     );
     return GestureDetector(
       onTapUp: (details) {
