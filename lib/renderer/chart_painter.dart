@@ -30,30 +30,34 @@ class ChartPainter extends BaseChartPainter {
   final bool hideGrid;
   AnimationController? controller;
   double opacity;
+  List<double>? specifiedPrice;
 
   final Paint realTimePaint = Paint()
         ..strokeWidth = 1.0
         ..isAntiAlias = true,
       pointPaint = Paint();
 
-  ChartPainter(this.chartStyle, this.chartColors,
-      {required datas,
-      required scaleX,
-      required scrollX,
-      required isLongPass,
-      required selectX,
-      mainState,
-      volHidden,
-      secondaryState,
-      this.sink,
-      bool isLine = false,
-      this.hideGrid = false,
-      this.bgColor,
-      this.fixedLength = 2,
-      this.maDayList = const [5, 10, 20],
-      this.controller,
-      this.opacity = 0.0})
-      : assert(bgColor == null || bgColor.length >= 2),
+  ChartPainter(
+    this.chartStyle,
+    this.chartColors, {
+    required datas,
+    required scaleX,
+    required scrollX,
+    required isLongPass,
+    required selectX,
+    mainState,
+    volHidden,
+    secondaryState,
+    this.sink,
+    bool isLine = false,
+    this.hideGrid = false,
+    this.bgColor,
+    this.fixedLength = 2,
+    this.maDayList = const [5, 10, 20],
+    this.controller,
+    this.opacity = 0.0,
+    this.specifiedPrice,
+  })  : assert(bgColor == null || bgColor.length >= 2),
         super(chartStyle,
             datas: datas,
             scaleX: scaleX,
@@ -110,6 +114,12 @@ class ChartPainter extends BaseChartPainter {
           chartStyle,
           chartColors);
     }
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    super.paint(canvas, size);
+    drawSpecifiedPrices(canvas);
   }
 
   @override
@@ -463,6 +473,26 @@ class ChartPainter extends BaseChartPainter {
           realTimePaint
             ..color = ChartColors.realTimeTextColor
             ..shader = null);
+    }
+  }
+
+  void drawSpecifiedPrices(Canvas canvas) {
+    if (specifiedPrice == null) return;
+    var dashWidth = 10;
+    var dashSpace = 5;
+    var space = (dashSpace + dashWidth);
+    for (var price in specifiedPrice!) {
+      double startX = 0;
+      double y = getMainY(price);
+      while (startX < mWidth) {
+        canvas.drawLine(Offset(startX, y), Offset(startX + dashWidth, y),
+            realTimePaint..color = ChartColors.realTimeLongLineColor);
+        startX += space;
+      }
+      TextPainter tp =
+          getTextPainter(format(price), ChartColors.rightRealTimeTextColor);
+      Offset textOffset = Offset(5, y - tp.height - 2);
+      tp.paint(canvas, textOffset);
     }
   }
 

@@ -142,6 +142,7 @@ class _KChartWidgetState extends State<KChartWidget>
       maDayList: widget.maDayList,
       controller: _currPriceController,
       opacity: _currPriceAnimation.value,
+      specifiedPrice: [33100, 29000, 41000],
     );
     return GestureDetector(
       onTapUp: (details) {
