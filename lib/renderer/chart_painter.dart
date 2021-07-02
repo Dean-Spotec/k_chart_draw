@@ -32,10 +32,10 @@ class ChartPainter extends BaseChartPainter {
   double opacity;
   List<double>? specifiedPrice;
 
-  final Paint realTimePaint = Paint()
-        ..strokeWidth = 1.0
-        ..isAntiAlias = true,
-      pointPaint = Paint();
+  var _twinklPaint = Paint();
+  var _realTimePaint = Paint()
+    ..strokeWidth = 1.0
+    ..isAntiAlias = true;
 
   ChartPainter(
     this.chartStyle,
@@ -171,6 +171,9 @@ class ChartPainter extends BaseChartPainter {
     canvas.save();
     canvas.translate(mTranslateX * scaleX, 0.0);
     canvas.scale(scaleX, 1.0);
+    drawTestSegment(canvas);
+    drawStraightLine(canvas, size);
+    drawRay(canvas, size);
     for (int i = mStartIndex; datas != null && i <= mStopIndex; i++) {
       KLineEntity? curPoint = datas?[i];
       if (curPoint == null) continue;
@@ -401,7 +404,7 @@ class ChartPainter extends BaseChartPainter {
         canvas.drawLine(
             Offset(x + startX, y),
             Offset(x + startX + dashWidth, y),
-            realTimePaint..color = ChartColors.realTimeLineColor);
+            _realTimePaint..color = ChartColors.realTimeLineColor);
         startX += space;
       }
       //画一闪一闪
@@ -409,11 +412,11 @@ class ChartPainter extends BaseChartPainter {
         startAnimation();
         Gradient pointGradient = RadialGradient(
             colors: [Colors.white.withOpacity(opacity), Colors.transparent]);
-        pointPaint.shader = pointGradient
+        _twinklPaint.shader = pointGradient
             .createShader(Rect.fromCircle(center: Offset(x, y), radius: 14.0));
-        canvas.drawCircle(Offset(x, y), 14.0, pointPaint);
+        canvas.drawCircle(Offset(x, y), 14.0, _twinklPaint);
         canvas.drawCircle(
-            Offset(x, y), 2.0, realTimePaint..color = Colors.white);
+            Offset(x, y), 2.0, _realTimePaint..color = Colors.white);
       } else {
         stopAnimation(); //停止一闪闪
       }
@@ -421,7 +424,7 @@ class ChartPainter extends BaseChartPainter {
       double top = y - tp.height / 2;
       canvas.drawRect(
           Rect.fromLTRB(left, top, left + tp.width, top + tp.height),
-          realTimePaint..color = ChartColors.realTimeBgColor);
+          _realTimePaint..color = ChartColors.realTimeBgColor);
       tp.paint(canvas, Offset(left, top));
     } else {
       stopAnimation(); //停止一闪闪
@@ -433,7 +436,7 @@ class ChartPainter extends BaseChartPainter {
       }
       while (startX < mWidth) {
         canvas.drawLine(Offset(startX, y), Offset(startX + dashWidth, y),
-            realTimePaint..color = ChartColors.realTimeLongLineColor);
+            _realTimePaint..color = ChartColors.realTimeLongLineColor);
         startX += space;
       }
 
@@ -454,9 +457,9 @@ class ChartPainter extends BaseChartPainter {
       RRect rectBg2 = RRect.fromLTRBR(left - 1, top - 1, right + 1, bottom + 1,
           Radius.circular(radius + 2));
       canvas.drawRRect(
-          rectBg2, realTimePaint..color = ChartColors.realTimeTextBorderColor);
+          rectBg2, _realTimePaint..color = ChartColors.realTimeTextBorderColor);
       canvas.drawRRect(
-          rectBg1, realTimePaint..color = ChartColors.realTimeBgColor);
+          rectBg1, _realTimePaint..color = ChartColors.realTimeBgColor);
       tp = getTextPainter(format(point.close), ChartColors.realTimeTextColor);
       Offset textOffset = Offset(left + padding, y - tp.height / 2);
       tp.paint(canvas, textOffset);
@@ -470,7 +473,7 @@ class ChartPainter extends BaseChartPainter {
       path.close();
       canvas.drawPath(
           path,
-          realTimePaint
+          _realTimePaint
             ..color = ChartColors.realTimeTextColor
             ..shader = null);
     }
@@ -486,7 +489,7 @@ class ChartPainter extends BaseChartPainter {
       double y = getMainY(price);
       while (startX < mWidth) {
         canvas.drawLine(Offset(startX, y), Offset(startX + dashWidth, y),
-            realTimePaint..color = ChartColors.realTimeLongLineColor);
+            _realTimePaint..color = ChartColors.realTimeLongLineColor);
         startX += space;
       }
       TextPainter tp =
@@ -524,5 +527,92 @@ class ChartPainter extends BaseChartPainter {
   /// 点是否在SecondaryRect中
   bool isInSecondaryRect(Offset point) {
     return mSecondaryRect?.contains(point) ?? false;
+  }
+
+  final _userPaint = Paint()
+    ..strokeWidth = 1.0
+    ..isAntiAlias = true
+    ..color = Colors.red;
+
+  void drawTestSegment(Canvas canvas) {
+    if (datas == null) return;
+    var length = datas!.length;
+    var index1 = length - 15;
+    var index2 = length - 3;
+    var data1 = datas![index1];
+    var data2 = datas![index2];
+    var p1 = Offset(getX(index1), getMainY(data1.open));
+    var p2 = Offset(getX(index2), getMainY(data2.open));
+    canvas.drawLine(p1, p2, _userPaint);
+  }
+
+  void drawStraightLine(Canvas canvas, Size size) {
+    if (datas == null) return;
+    var length = datas!.length;
+    var index1 = length - 17;
+    var index2 = length - 6;
+    var data1 = datas![index1];
+    var data2 = datas![index2];
+    var p1 = Offset(getX(index1), getMainY(data1.open));
+    var p2 = Offset(getX(index2), getMainY(data2.open));
+    var leftEdgePoint = getLeftEdgePoint(p1, p2, size);
+    var rightEdgePoint = getRightEdgePoint(p1, p2, size);
+
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(
+        leftEdgePoint.dx,
+        0,
+        rightEdgePoint.dx - leftEdgePoint.dx,
+        mMainRect.height + mMainRect.top));
+    canvas.drawLine(leftEdgePoint, rightEdgePoint, _userPaint);
+    canvas.restore();
+  }
+
+  void drawRay(Canvas canvas, Size size) {
+    if (datas == null) return;
+    var length = datas!.length;
+    var index1 = length - 20;
+    var index2 = length - 8;
+    var data1 = datas![index1];
+    var data2 = datas![index2];
+    var p1 = Offset(getX(index1), getMainY(data1.open));
+    var p2 = Offset(getX(index2), getMainY(data2.open));
+    var leftEdgePoint = getLeftEdgePoint(p1, p2, size);
+    var rightEdgePoint = getRightEdgePoint(p1, p2, size);
+
+    Offset endPoint;
+    if (p1.dx < p2.dx) {
+      // 端点在画布右侧
+      endPoint = rightEdgePoint;
+    } else {
+      // 端点在画布左侧
+      endPoint = leftEdgePoint;
+    }
+
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(
+        leftEdgePoint.dx,
+        0,
+        rightEdgePoint.dx - leftEdgePoint.dx,
+        mMainRect.height + mMainRect.top));
+    canvas.drawLine(p1, endPoint, _userPaint);
+    canvas.restore();
+  }
+
+  Offset getLeftEdgePoint(Offset p1, Offset p2, Size size) {
+    var slope = (p2.dy - p1.dy) / (p2.dx - p1.dx);
+    // 用mStartIndex前面的一个index，确保直线不会与画布边缘出现空隙
+    var pointX = getX(mStartIndex - 1);
+    var pointY = p1.dy - slope * (p1.dx - pointX);
+    return Offset(pointX, pointY);
+  }
+
+  Offset getRightEdgePoint(Offset p1, Offset p2, Size size) {
+    var slope = (p2.dy - p1.dy) / (p2.dx - p1.dx);
+    var leftEdgetPoint = getLeftEdgePoint(p1, p2, size);
+    // 初识点x+画布宽度+2倍点与点的间距（确保直线不会与画布边缘出现空隙）
+    var rightEdgePointX = leftEdgetPoint.dx + size.width + 2 * mPointWidth;
+    var rightEdgePointY = p1.dy + slope * (rightEdgePointX - p1.dx);
+    return Offset(rightEdgePointX, rightEdgePointY);
   }
 }
