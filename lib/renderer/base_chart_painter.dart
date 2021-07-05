@@ -103,6 +103,7 @@ abstract class BaseChartPainter extends CustomPainter {
       if (isLongPress == true) drawCrossLineText(canvas, size);
       drawText(canvas, datas!.last, 5);
       drawMaxAndMin(canvas);
+      drawCustomGraph(canvas);
     }
     canvas.restore();
   }
@@ -135,6 +136,9 @@ abstract class BaseChartPainter extends CustomPainter {
 
   //交叉线值
   void drawCrossLineText(Canvas canvas, Size size);
+
+  //用户手动绘制的图形
+  void drawCustomGraph(Canvas canvas);
 
   void initRect(Size size) {
     double volHeight = volHidden != true ? mDisplayHeight * 0.2 : 0;

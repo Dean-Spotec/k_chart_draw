@@ -91,6 +91,8 @@ class _KChartWidgetState extends State<KChartWidget>
 
   double _lastScale = 1.0;
   bool isScale = false, isDrag = false, isLongPress = false;
+  CustomDrawType _drawType = CustomDrawType.segmentLine;
+  List<Offset> _drawPoints = [];
 
   @override
   void initState() {
@@ -143,12 +145,28 @@ class _KChartWidgetState extends State<KChartWidget>
       controller: _currPriceController,
       opacity: _currPriceAnimation.value,
       specifiedPrice: [33100, 29000, 41000],
+      drawType: _drawType,
+      drawPoints: _drawPoints,
     );
     return GestureDetector(
       onTapUp: (details) {
-        if (widget.onSecondaryTap != null &&
-            _painter.isInSecondaryRect(details.localPosition)) {
-          widget.onSecondaryTap!();
+        // if (widget.onSecondaryTap != null &&
+        //     _painter.isInSecondaryRect(details.localPosition)) {
+        //   widget.onSecondaryTap!();
+        // }
+        print(details.localPosition);
+        switch (_drawType) {
+          case CustomDrawType.segmentLine:
+          case CustomDrawType.ray:
+          case CustomDrawType.straightLine:
+            if (_drawPoints.length < 2) {
+              _drawPoints.add(details.localPosition);
+              notifyChanged();
+            } else {
+              _drawPoints = [];
+              notifyChanged();
+            }
+            break;
         }
       },
       onHorizontalDragDown: (details) {

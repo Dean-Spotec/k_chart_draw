@@ -12,6 +12,8 @@ import 'main_renderer.dart';
 import 'secondary_renderer.dart';
 import 'vol_renderer.dart';
 
+enum CustomDrawType { segmentLine, ray, straightLine }
+
 class ChartPainter extends BaseChartPainter {
   static get maxScrollX => BaseChartPainter.maxScrollX;
   late MainRenderer mMainRenderer;
@@ -31,6 +33,8 @@ class ChartPainter extends BaseChartPainter {
   AnimationController? controller;
   double opacity;
   List<double>? specifiedPrice;
+  CustomDrawType? drawType;
+  List<Offset>? drawPoints;
 
   var _twinklPaint = Paint();
   var _realTimePaint = Paint()
@@ -57,6 +61,8 @@ class ChartPainter extends BaseChartPainter {
     this.controller,
     this.opacity = 0.0,
     this.specifiedPrice,
+    this.drawType,
+    this.drawPoints,
   })  : assert(bgColor == null || bgColor.length >= 2),
         super(chartStyle,
             datas: datas,
@@ -171,9 +177,6 @@ class ChartPainter extends BaseChartPainter {
     canvas.save();
     canvas.translate(mTranslateX * scaleX, 0.0);
     canvas.scale(scaleX, 1.0);
-    drawTestSegment(canvas);
-    drawStraightLine(canvas, size);
-    drawRay(canvas, size);
     for (int i = mStartIndex; datas != null && i <= mStopIndex; i++) {
       KLineEntity? curPoint = datas?[i];
       if (curPoint == null) continue;
@@ -534,16 +537,32 @@ class ChartPainter extends BaseChartPainter {
     ..isAntiAlias = true
     ..color = Colors.red;
 
-  void drawTestSegment(Canvas canvas) {
-    if (datas == null) return;
-    var length = datas!.length;
-    var index1 = length - 15;
-    var index2 = length - 3;
-    var data1 = datas![index1];
-    var data2 = datas![index2];
-    var p1 = Offset(getX(index1), getMainY(data1.open));
-    var p2 = Offset(getX(index2), getMainY(data2.open));
-    canvas.drawLine(p1, p2, _userPaint);
+  void drawCustomGraph(Canvas canvas) {
+    if (drawType == null || drawPoints == null || drawPoints!.isEmpty) {
+      return;
+    }
+    canvas.save();
+    canvas.translate(mTranslateX * scaleX, 0.0);
+    canvas.scale(scaleX, 1.0);
+    var points = drawPoints!.map((e) {
+      return Offset(e.dx - mTranslateX * scaleX, e.dy);
+    }).toList();
+    switch (drawType) {
+      case CustomDrawType.segmentLine:
+        drawTestSegment(canvas, points);
+        break;
+      default:
+    }
+    canvas.restore();
+  }
+
+  void drawTestSegment(Canvas canvas, List<Offset> points) {
+    Offset p1 = points.first;
+    Offset p2;
+    if (points.length == 2) {
+      p2 = points.last;
+      canvas.drawLine(p1, p2, _userPaint);
+    }
   }
 
   void drawStraightLine(Canvas canvas, Size size) {
