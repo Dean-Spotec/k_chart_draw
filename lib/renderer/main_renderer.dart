@@ -267,4 +267,8 @@ class MainRenderer extends BaseChartRenderer<CandleEntity> {
   double getY(double y) {
     return (maxValue - y) * scaleY + _contentRect.top;
   }
+
+  double getPrice(double y) {
+    return maxValue - (y - _contentRect.top) / scaleY;
+  }
 }

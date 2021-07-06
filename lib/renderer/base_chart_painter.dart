@@ -103,7 +103,6 @@ abstract class BaseChartPainter extends CustomPainter {
       if (isLongPress == true) drawCrossLineText(canvas, size);
       drawText(canvas, datas!.last, 5);
       drawMaxAndMin(canvas);
-      drawCustomGraph(canvas);
     }
     canvas.restore();
   }
@@ -136,9 +135,6 @@ abstract class BaseChartPainter extends CustomPainter {
 
   //交叉线值
   void drawCrossLineText(Canvas canvas, Size size);
-
-  //用户手动绘制的图形
-  void drawCustomGraph(Canvas canvas);
 
   void initRect(Size size) {
     double volHeight = volHidden != true ? mDisplayHeight * 0.2 : 0;
@@ -300,6 +296,7 @@ abstract class BaseChartPainter extends CustomPainter {
   ///+ mPointWidth / 2防止第一根和最后一根k线显示不���
   ///@param position 索引值
   double getX(int position) => position * mPointWidth + mPointWidth / 2;
+  int getIndex(double positon) => (positon - mPointWidth / 2) ~/ mPointWidth;
 
   KLineEntity getItem(int position) {
     return datas![position];

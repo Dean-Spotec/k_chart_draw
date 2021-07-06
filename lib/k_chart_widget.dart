@@ -146,7 +146,7 @@ class _KChartWidgetState extends State<KChartWidget>
       opacity: _currPriceAnimation.value,
       specifiedPrice: [33100, 29000, 41000],
       drawType: _drawType,
-      drawPoints: _drawPoints,
+      touchPoints: _drawPoints,
     );
     return GestureDetector(
       onTapUp: (details) {
@@ -154,7 +154,6 @@ class _KChartWidgetState extends State<KChartWidget>
         //     _painter.isInSecondaryRect(details.localPosition)) {
         //   widget.onSecondaryTap!();
         // }
-        print(details.localPosition);
         switch (_drawType) {
           case CustomDrawType.segmentLine:
           case CustomDrawType.ray:
