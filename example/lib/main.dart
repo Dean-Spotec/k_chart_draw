@@ -105,6 +105,9 @@ class _MyHomePageState extends State<MyHomePage> {
               chartColors,
               isLine: isLine,
               mainState: _mainState,
+              outMainTap: () {
+                print('outMainTap');
+              },
               volHidden: _volHidden,
               secondaryState: _secondaryState,
               fixedLength: 2,
@@ -143,12 +146,18 @@ class _MyHomePageState extends State<MyHomePage> {
         button("Line:MA", onPressed: () => _mainState = MainState.MA),
         button("Line:BOLL", onPressed: () => _mainState = MainState.BOLL),
         button("Hide Line", onPressed: () => _mainState = MainState.NONE),
-        button("Secondary Chart:MACD", onPressed: () => _secondaryState = SecondaryState.MACD),
-        button("Secondary Chart:KDJ", onPressed: () => _secondaryState = SecondaryState.KDJ),
-        button("Secondary Chart:RSI", onPressed: () => _secondaryState = SecondaryState.RSI),
-        button("Secondary Chart:WR", onPressed: () => _secondaryState = SecondaryState.WR),
-        button("Secondary Chart:CCI", onPressed: () => _secondaryState = SecondaryState.CCI),
-        button("Secondary Chart:Hide", onPressed: () => _secondaryState = SecondaryState.NONE),
+        button("Secondary Chart:MACD",
+            onPressed: () => _secondaryState = SecondaryState.MACD),
+        button("Secondary Chart:KDJ",
+            onPressed: () => _secondaryState = SecondaryState.KDJ),
+        button("Secondary Chart:RSI",
+            onPressed: () => _secondaryState = SecondaryState.RSI),
+        button("Secondary Chart:WR",
+            onPressed: () => _secondaryState = SecondaryState.WR),
+        button("Secondary Chart:CCI",
+            onPressed: () => _secondaryState = SecondaryState.CCI),
+        button("Secondary Chart:Hide",
+            onPressed: () => _secondaryState = SecondaryState.NONE),
         button(_volHidden ? "Show Vol" : "Hide Vol",
             onPressed: () => _volHidden = !_volHidden),
         button("Change Language", onPressed: () => isChinese = !isChinese),
@@ -157,7 +166,7 @@ class _MyHomePageState extends State<MyHomePage> {
         button("Customize UI", onPressed: () {
           setState(() {
             this.isChangeUI = !this.isChangeUI;
-            if(this.isChangeUI) {
+            if (this.isChangeUI) {
               chartColors.selectBorderColor = Colors.red;
               chartColors.selectFillColor = Colors.red;
               chartColors.lineFillColor = Colors.red;

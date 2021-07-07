@@ -26,6 +26,8 @@ class TimeFormat {
 class KChartWidget extends StatefulWidget {
   final List<KLineEntity>? datas;
   final MainState mainState;
+  //画图点击事件超出主图范围
+  final Function()? outMainTap;
   final bool volHidden;
   final SecondaryState secondaryState;
   final Function()? onSecondaryTap;
@@ -53,6 +55,7 @@ class KChartWidget extends StatefulWidget {
     this.chartStyle,
     this.chartColors, {
     this.mainState = MainState.MA,
+    this.outMainTap,
     this.secondaryState = SecondaryState.MACD,
     this.onSecondaryTap,
     this.volHidden = false,
@@ -146,26 +149,35 @@ class _KChartWidgetState extends State<KChartWidget>
       opacity: _currPriceAnimation.value,
       specifiedPrice: [33100, 29000, 41000],
       drawType: _drawType,
-      touchPoints: _drawPoints,
+      drawPoints: _drawPoints,
     );
     return GestureDetector(
       onTapUp: (details) {
-        // if (widget.onSecondaryTap != null &&
-        //     _painter.isInSecondaryRect(details.localPosition)) {
-        //   widget.onSecondaryTap!();
-        // }
-        switch (_drawType) {
-          case CustomDrawType.segmentLine:
-          case CustomDrawType.ray:
-          case CustomDrawType.straightLine:
-            if (_drawPoints.length < 2) {
-              _drawPoints.add(details.localPosition);
-              notifyChanged();
-            } else {
-              _drawPoints = [];
-              notifyChanged();
-            }
-            break;
+        if (widget.onSecondaryTap != null &&
+            _painter.isInSecondaryRect(details.localPosition)) {
+          widget.onSecondaryTap!();
+        } else {
+          switch (_drawType) {
+            case CustomDrawType.segmentLine:
+            case CustomDrawType.ray:
+            case CustomDrawType.straightLine:
+              if (_drawPoints.length < 2) {
+                var drawPoint =
+                    _painter.calculateGraphValues(details.localPosition);
+                if (drawPoint == null) {
+                  if (widget.outMainTap != null) {
+                    widget.outMainTap!();
+                  }
+                } else {
+                  _drawPoints.add(drawPoint);
+                }
+                notifyChanged();
+              } else {
+                _drawPoints = [];
+                notifyChanged();
+              }
+              break;
+          }
         }
       },
       onHorizontalDragDown: (details) {

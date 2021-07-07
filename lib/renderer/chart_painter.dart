@@ -34,10 +34,7 @@ class ChartPainter extends BaseChartPainter {
   double opacity;
   List<double>? specifiedPrice;
   CustomDrawType? drawType;
-  List<Offset>? touchPoints;
-
-  var _isFirstPaint = true;
-  List<Offset>? _drawPoints;
+  List<Offset>? drawPoints;
 
   var _twinklPaint = Paint();
   var _realTimePaint = Paint()
@@ -65,7 +62,7 @@ class ChartPainter extends BaseChartPainter {
     this.opacity = 0.0,
     this.specifiedPrice,
     this.drawType,
-    this.touchPoints,
+    this.drawPoints,
   })  : assert(bgColor == null || bgColor.length >= 2),
         super(chartStyle,
             datas: datas,
@@ -128,11 +125,8 @@ class ChartPainter extends BaseChartPainter {
   @override
   void paint(Canvas canvas, Size size) {
     super.paint(canvas, size);
-    if (_isFirstPaint) {
-      calculateGraphValues();
-      _isFirstPaint = false;
-    }
-    drawCustomGraph(canvas);
+    drawGraphShap(canvas);
+    drawGraphPoints(canvas);
     drawSpecifiedPrices(canvas);
   }
 
@@ -546,48 +540,48 @@ class ChartPainter extends BaseChartPainter {
     ..isAntiAlias = true
     ..color = Colors.red;
 
-  void calculateGraphValues() {
-    if (touchPoints == null || touchPoints!.isEmpty) {
-      return;
+  //计算手势的点在k线图中对应的index和价格
+  Offset? calculateGraphValues(Offset touchPoint) {
+    if (!mMainRect.contains(touchPoint)) {
+      return null;
     }
-    _drawPoints = touchPoints!.map((e) {
-      var index = getIndex(e.dx - getMinTranslateX());
-      var price = getMainPrice(e.dy);
-      print(Offset(index.toDouble(), price));
-      return Offset(index.toDouble(), price);
-    }).toList();
+    var index = getIndex(touchPoint.dx / scaleX - mTranslateX);
+    var price = getMainPrice(touchPoint.dy);
+    return Offset(index.toDouble(), price);
   }
 
   //用户手动绘制的图形
-  void drawCustomGraph(Canvas canvas) {
-    if (drawType == null || _drawPoints == null || _drawPoints!.isEmpty) {
+  void drawGraphShap(Canvas canvas) {
+    if (drawType == null || drawPoints == null || drawPoints!.isEmpty) {
       return;
     }
     canvas.save();
     canvas.translate(mTranslateX * scaleX, 0.0);
     canvas.scale(scaleX, 1.0);
-    var points = _drawPoints!.map((e) {
-      print("====");
-      print(Offset(getX(e.dx.toInt()), getMainY(e.dy)));
+    var points = drawPoints!.map((e) {
       return Offset(getX(e.dx.toInt()), getMainY(e.dy));
     }).toList();
     switch (drawType) {
       case CustomDrawType.segmentLine:
-        drawTestSegment(canvas, points);
+        drawSegmentLine(canvas, points);
         break;
       default:
     }
     canvas.restore();
   }
 
-  void drawTestSegment(Canvas canvas, List<Offset> points) {
-    Offset p1 = points.first;
-    // print(p1);
-    canvas.drawCircle(p1, 4, _graphPaint);
-    Offset p2;
+  void drawGraphPoints(Canvas canvas) {
+    drawPoints?.forEach((point) {
+      double dx = translateXtoX(getX(point.dx.toInt()));
+      double dy = getMainY(point.dy);
+      canvas.drawCircle(Offset(dx, dy), 4, _graphPaint);
+    });
+  }
+
+  void drawSegmentLine(Canvas canvas, List<Offset> points) {
     if (points.length == 2) {
-      p2 = points.last;
-      canvas.drawCircle(p2, 4, _graphPaint);
+      Offset p1 = points.first;
+      Offset p2 = points.last;
       canvas.drawLine(p1, p2, _graphPaint);
     }
   }
@@ -614,7 +608,7 @@ class ChartPainter extends BaseChartPainter {
     canvas.restore();
   }
 
-  void drawRay(Canvas canvas, Size size) {
+  void drawRayLine(Canvas canvas, Size size) {
     if (datas == null) return;
     var length = datas!.length;
     var index1 = length - 20;
