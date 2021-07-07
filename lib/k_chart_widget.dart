@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:k_chart/chart_translations.dart';
+import 'package:k_chart/entity/draw_graph_entity.dart';
 import 'package:k_chart/extension/map_ext.dart';
 import 'package:k_chart/flutter_k_chart.dart';
 
@@ -37,6 +38,7 @@ class KChartWidget extends StatefulWidget {
   final bool isChinese;
   final Map<String, ChartTranslations> translations;
   final List<String> timeFormat;
+  DrawGraphType? drawType;
 
   //当屏幕滚动到尽头会调用，真为拉到屏幕右侧尽头，假为拉到屏幕左侧尽头
   final Function(bool)? onLoadMore;
@@ -49,6 +51,7 @@ class KChartWidget extends StatefulWidget {
   final Function(bool)? isOnDrag;
   final ChartColors chartColors;
   final ChartStyle chartStyle;
+  final bool enableDrawGraph;
 
   KChartWidget(
     this.datas,
@@ -72,6 +75,8 @@ class KChartWidget extends StatefulWidget {
     this.flingRatio = 0.5,
     this.flingCurve = Curves.decelerate,
     this.isOnDrag,
+    this.enableDrawGraph = false,
+    this.drawType,
   });
 
   @override
@@ -94,8 +99,8 @@ class _KChartWidgetState extends State<KChartWidget>
 
   double _lastScale = 1.0;
   bool isScale = false, isDrag = false, isLongPress = false;
-  CustomDrawType _drawType = CustomDrawType.segmentLine;
-  List<Offset> _drawPoints = [];
+  List<DrawGraphEntity> _inactiveGraphs = [];
+  DrawGraphEntity? _activeGraph;
 
   @override
   void initState() {
@@ -148,8 +153,8 @@ class _KChartWidgetState extends State<KChartWidget>
       controller: _currPriceController,
       opacity: _currPriceAnimation.value,
       specifiedPrice: [33100, 29000, 41000],
-      drawType: _drawType,
-      drawPoints: _drawPoints,
+      inactiveGraphs: _inactiveGraphs,
+      activeGraph: _activeGraph,
     );
     return GestureDetector(
       onTapUp: (details) {
@@ -157,27 +162,7 @@ class _KChartWidgetState extends State<KChartWidget>
             _painter.isInSecondaryRect(details.localPosition)) {
           widget.onSecondaryTap!();
         } else {
-          switch (_drawType) {
-            case CustomDrawType.segmentLine:
-            case CustomDrawType.ray:
-            case CustomDrawType.straightLine:
-              if (_drawPoints.length < 2) {
-                var drawPoint =
-                    _painter.calculateGraphValues(details.localPosition);
-                if (drawPoint == null) {
-                  if (widget.outMainTap != null) {
-                    widget.outMainTap!();
-                  }
-                } else {
-                  _drawPoints.add(drawPoint);
-                }
-                notifyChanged();
-              } else {
-                _drawPoints = [];
-                notifyChanged();
-              }
-              break;
-          }
+          mainRectTapped(_painter, details.localPosition);
         }
       },
       onHorizontalDragDown: (details) {
@@ -210,16 +195,16 @@ class _KChartWidgetState extends State<KChartWidget>
       },
       onLongPressStart: (details) {
         isLongPress = true;
-        if (mSelectX != details.globalPosition.dx) {
-          mSelectX = details.globalPosition.dx;
-          notifyChanged();
-        }
+        // if (mSelectX != details.globalPosition.dx) {
+        //   mSelectX = details.globalPosition.dx;
+        //   notifyChanged();
+        // }
       },
       onLongPressMoveUpdate: (details) {
-        if (mSelectX != details.globalPosition.dx) {
-          mSelectX = details.globalPosition.dx;
-          notifyChanged();
-        }
+        // if (mSelectX != details.globalPosition.dx) {
+        //   mSelectX = details.globalPosition.dx;
+        //   notifyChanged();
+        // }
       },
       onLongPressEnd: (details) {
         isLongPress = false;
@@ -247,6 +232,55 @@ class _KChartWidgetState extends State<KChartWidget>
       }
     }
   }
+
+  void mainRectTapped(ChartPainter painter, Offset touchPoint) {
+    if (widget.enableDrawGraph) {
+      drawGraphShape(painter, touchPoint);
+    } else {}
+  }
+
+  void drawGraphShape(ChartPainter painter, Offset touchPoint) {
+    if (widget.drawType == null) {
+      return;
+    }
+    switch (widget.drawType!) {
+      case DrawGraphType.segmentLine:
+      case DrawGraphType.rayLine:
+      case DrawGraphType.straightLine:
+      case DrawGraphType.rectangle:
+        if (_activeGraph == null) {
+          _activeGraph = DrawGraphEntity(widget.drawType!, []);
+        }
+        if (_activeGraph!.values.length < 2) {
+          var value = painter.calculateGraphValue(touchPoint);
+          if (value == null) {
+            if (widget.outMainTap != null) {
+              widget.outMainTap!();
+            }
+          } else {
+            _activeGraph!.values.add(value);
+          }
+          notifyChanged();
+        } else {
+          endDrawGraph();
+        }
+        break;
+    }
+  }
+
+  void endDrawGraph() {
+    if (_activeGraph == null) {
+      return;
+    }
+    //length>=2才是有效图形
+    if (_activeGraph!.values.length >= 2) {
+      _inactiveGraphs.add(_activeGraph!);
+    }
+    _activeGraph = null;
+    notifyChanged();
+  }
+
+  void detectGraphShape() {}
 
   void _onDragChanged(bool isOnDrag) {
     isDrag = isOnDrag;

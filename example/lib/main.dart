@@ -7,6 +7,7 @@ import 'package:k_chart/chart_style.dart';
 import 'package:k_chart/chart_translations.dart';
 import 'package:k_chart/flutter_k_chart.dart';
 import 'package:k_chart/k_chart_widget.dart';
+import 'package:k_chart/entity/draw_graph_entity.dart';
 
 void main() => runApp(MyApp());
 
@@ -43,7 +44,8 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _hideGrid = false;
   List<DepthEntity>? _bids, _asks;
   bool isChangeUI = false;
-
+  bool enableDrawGraph = false;
+  DrawGraphType drawType = DrawGraphType.segmentLine;
   ChartStyle chartStyle = ChartStyle();
   ChartColors chartColors = ChartColors();
 
@@ -117,6 +119,8 @@ class _MyHomePageState extends State<MyHomePage> {
               isChinese: isChinese,
               hideGrid: _hideGrid,
               maDayList: [1, 100, 1000],
+              enableDrawGraph: enableDrawGraph,
+              drawType: drawType,
             ),
           ),
           if (showLoading)
@@ -141,6 +145,14 @@ class _MyHomePageState extends State<MyHomePage> {
     return Wrap(
       alignment: WrapAlignment.spaceEvenly,
       children: <Widget>[
+        button("Enable Draw", onPressed: () => enableDrawGraph = true),
+        button("Disable Draw", onPressed: () => enableDrawGraph = false),
+        button("Segment",
+            onPressed: () => drawType = DrawGraphType.segmentLine),
+        button("Ray", onPressed: () => drawType = DrawGraphType.rayLine),
+        button("Straight",
+            onPressed: () => drawType = DrawGraphType.straightLine),
+        button("rect", onPressed: () => drawType = DrawGraphType.rectangle),
         button("Time Mode", onPressed: () => isLine = true),
         button("K Line Mode", onPressed: () => isLine = false),
         button("Line:MA", onPressed: () => _mainState = MainState.MA),

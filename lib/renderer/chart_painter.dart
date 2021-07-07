@@ -1,6 +1,7 @@
 import 'dart:async' show StreamSink;
 
 import 'package:flutter/material.dart';
+import 'package:k_chart/entity/draw_graph_entity.dart';
 import 'package:k_chart/utils/number_util.dart';
 
 import '../entity/info_window_entity.dart';
@@ -11,8 +12,6 @@ import 'base_chart_renderer.dart';
 import 'main_renderer.dart';
 import 'secondary_renderer.dart';
 import 'vol_renderer.dart';
-
-enum CustomDrawType { segmentLine, ray, straightLine }
 
 class ChartPainter extends BaseChartPainter {
   static get maxScrollX => BaseChartPainter.maxScrollX;
@@ -33,8 +32,8 @@ class ChartPainter extends BaseChartPainter {
   AnimationController? controller;
   double opacity;
   List<double>? specifiedPrice;
-  CustomDrawType? drawType;
-  List<Offset>? drawPoints;
+  List<DrawGraphEntity>? inactiveGraphs;
+  DrawGraphEntity? activeGraph;
 
   var _twinklPaint = Paint();
   var _realTimePaint = Paint()
@@ -61,8 +60,8 @@ class ChartPainter extends BaseChartPainter {
     this.controller,
     this.opacity = 0.0,
     this.specifiedPrice,
-    this.drawType,
-    this.drawPoints,
+    this.inactiveGraphs,
+    this.activeGraph,
   })  : assert(bgColor == null || bgColor.length >= 2),
         super(chartStyle,
             datas: datas,
@@ -125,9 +124,8 @@ class ChartPainter extends BaseChartPainter {
   @override
   void paint(Canvas canvas, Size size) {
     super.paint(canvas, size);
-    drawGraphShap(canvas);
-    drawGraphPoints(canvas);
     drawSpecifiedPrices(canvas);
+    drawGraphShap(canvas);
   }
 
   @override
@@ -541,84 +539,76 @@ class ChartPainter extends BaseChartPainter {
     ..color = Colors.red;
 
   //计算手势的点在k线图中对应的index和价格
-  Offset? calculateGraphValues(Offset touchPoint) {
+  DrawGraphValue? calculateGraphValue(Offset touchPoint) {
     if (!mMainRect.contains(touchPoint)) {
       return null;
     }
     var index = getIndex(touchPoint.dx / scaleX - mTranslateX);
     var price = getMainPrice(touchPoint.dy);
-    return Offset(index.toDouble(), price);
+    return DrawGraphValue(index, price);
   }
 
   //用户手动绘制的图形
   void drawGraphShap(Canvas canvas) {
-    if (drawType == null || drawPoints == null || drawPoints!.isEmpty) {
-      return;
-    }
     canvas.save();
     canvas.translate(mTranslateX * scaleX, 0.0);
     canvas.scale(scaleX, 1.0);
-    var points = drawPoints!.map((e) {
-      return Offset(getX(e.dx.toInt()), getMainY(e.dy));
+    // drawInactiveShape(canvas);
+    // drawActiveShape(canvas);
+    //绘制没有交互的图形
+    inactiveGraphs?.forEach((graph) {
+      drawSingleShap(canvas, graph);
+    });
+    drawSingleShap(canvas, activeGraph);
+    //绘制交互中的图形
+    canvas.restore();
+    drawGraphPoints(canvas);
+  }
+
+  void drawSingleShap(Canvas canvas, DrawGraphEntity? graph) {
+    if (graph == null) {
+      return;
+    }
+    var points = graph.values.map((value) {
+      return Offset(getX(value.index), getMainY(value.price));
     }).toList();
-    switch (drawType) {
-      case CustomDrawType.segmentLine:
+    if (points.length < 2) {
+      return;
+    }
+    switch (graph.drawType) {
+      case DrawGraphType.segmentLine:
         drawSegmentLine(canvas, points);
+        break;
+      case DrawGraphType.rayLine:
+        drawRayLine(canvas, points);
+        break;
+      case DrawGraphType.straightLine:
+        drawStraightLine(canvas, points);
+        break;
+      case DrawGraphType.rectangle:
+        drawRectangle(canvas, points);
         break;
       default:
     }
-    canvas.restore();
   }
 
   void drawGraphPoints(Canvas canvas) {
-    drawPoints?.forEach((point) {
-      double dx = translateXtoX(getX(point.dx.toInt()));
-      double dy = getMainY(point.dy);
+    activeGraph?.values.forEach((value) {
+      double dx = translateXtoX(getX(value.index));
+      double dy = getMainY(value.price);
       canvas.drawCircle(Offset(dx, dy), 4, _graphPaint);
     });
   }
 
   void drawSegmentLine(Canvas canvas, List<Offset> points) {
-    if (points.length == 2) {
-      Offset p1 = points.first;
-      Offset p2 = points.last;
-      canvas.drawLine(p1, p2, _graphPaint);
-    }
+    canvas.drawLine(points.first, points.last, _graphPaint);
   }
 
-  void drawStraightLine(Canvas canvas, Size size) {
-    if (datas == null) return;
-    var length = datas!.length;
-    var index1 = length - 17;
-    var index2 = length - 6;
-    var data1 = datas![index1];
-    var data2 = datas![index2];
-    var p1 = Offset(getX(index1), getMainY(data1.open));
-    var p2 = Offset(getX(index2), getMainY(data2.open));
-    var leftEdgePoint = getLeftEdgePoint(p1, p2, size);
-    var rightEdgePoint = getRightEdgePoint(p1, p2, size);
-
-    canvas.save();
-    canvas.clipRect(Rect.fromLTWH(
-        leftEdgePoint.dx,
-        0,
-        rightEdgePoint.dx - leftEdgePoint.dx,
-        mMainRect.height + mMainRect.top));
-    canvas.drawLine(leftEdgePoint, rightEdgePoint, _graphPaint);
-    canvas.restore();
-  }
-
-  void drawRayLine(Canvas canvas, Size size) {
-    if (datas == null) return;
-    var length = datas!.length;
-    var index1 = length - 20;
-    var index2 = length - 8;
-    var data1 = datas![index1];
-    var data2 = datas![index2];
-    var p1 = Offset(getX(index1), getMainY(data1.open));
-    var p2 = Offset(getX(index2), getMainY(data2.open));
-    var leftEdgePoint = getLeftEdgePoint(p1, p2, size);
-    var rightEdgePoint = getRightEdgePoint(p1, p2, size);
+  void drawRayLine(Canvas canvas, List<Offset> points) {
+    var p1 = points.first;
+    var p2 = points.last;
+    var leftEdgePoint = getLeftEdgePoint(p1, p2);
+    var rightEdgePoint = getRightEdgePoint(p1, p2);
 
     Offset endPoint;
     if (p1.dx < p2.dx) {
@@ -639,7 +629,23 @@ class ChartPainter extends BaseChartPainter {
     canvas.restore();
   }
 
-  Offset getLeftEdgePoint(Offset p1, Offset p2, Size size) {
+  void drawStraightLine(Canvas canvas, List<Offset> points) {
+    var p1 = points.first;
+    var p2 = points.last;
+    var leftEdgePoint = getLeftEdgePoint(p1, p2);
+    var rightEdgePoint = getRightEdgePoint(p1, p2);
+
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(
+        leftEdgePoint.dx,
+        0,
+        rightEdgePoint.dx - leftEdgePoint.dx,
+        mMainRect.height + mMainRect.top));
+    canvas.drawLine(leftEdgePoint, rightEdgePoint, _graphPaint);
+    canvas.restore();
+  }
+
+  Offset getLeftEdgePoint(Offset p1, Offset p2) {
     var slope = (p2.dy - p1.dy) / (p2.dx - p1.dx);
     // 用mStartIndex前面的一个index，确保直线不会与画布边缘出现空隙
     var pointX = getX(mStartIndex - 1);
@@ -647,12 +653,17 @@ class ChartPainter extends BaseChartPainter {
     return Offset(pointX, pointY);
   }
 
-  Offset getRightEdgePoint(Offset p1, Offset p2, Size size) {
+  Offset getRightEdgePoint(Offset p1, Offset p2) {
     var slope = (p2.dy - p1.dy) / (p2.dx - p1.dx);
-    var leftEdgetPoint = getLeftEdgePoint(p1, p2, size);
+    var leftEdgetPoint = getLeftEdgePoint(p1, p2);
     // 初识点x+画布宽度+2倍点与点的间距（确保直线不会与画布边缘出现空隙）
-    var rightEdgePointX = leftEdgetPoint.dx + size.width + 2 * mPointWidth;
+    var rightEdgePointX = leftEdgetPoint.dx + mWidth + 2 * mPointWidth;
     var rightEdgePointY = p1.dy + slope * (rightEdgePointX - p1.dx);
     return Offset(rightEdgePointX, rightEdgePointY);
+  }
+
+  void drawRectangle(Canvas canvas, List<Offset> points) {
+    var rect = Rect.fromPoints(points.first, points.last);
+    canvas.drawRect(rect, _graphPaint);
   }
 }
