@@ -103,9 +103,9 @@ class _KChartWidgetState extends State<KChartWidget>
     mInfoWindowStream = StreamController<InfoWindowEntity?>();
     _currPriceController = AnimationController(
         duration: const Duration(milliseconds: 850), vsync: this);
-    _currPriceAnimation = Tween(begin: 0.9, end: 0.1)
-        .animate(_currPriceController)
-          ..addListener(() => setState(() {}));
+    _currPriceAnimation =
+        Tween(begin: 0.9, end: 0.1).animate(_currPriceController);
+    // ..addListener(() => setState(() {}));
   }
 
   @override

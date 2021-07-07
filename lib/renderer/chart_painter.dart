@@ -414,7 +414,7 @@ class ChartPainter extends BaseChartPainter {
       }
       //画一闪一闪
       if (isLine) {
-        startAnimation();
+        // startAnimation();
         Gradient pointGradient = RadialGradient(
             colors: [Colors.white.withOpacity(opacity), Colors.transparent]);
         _twinklPaint.shader = pointGradient
@@ -423,7 +423,7 @@ class ChartPainter extends BaseChartPainter {
         canvas.drawCircle(
             Offset(x, y), 2.0, _realTimePaint..color = Colors.white);
       } else {
-        stopAnimation(); //停止一闪闪
+        // stopAnimation(); //停止一闪闪
       }
       double left = mWidth - tp.width;
       double top = y - tp.height / 2;
