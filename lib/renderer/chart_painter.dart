@@ -543,25 +543,19 @@ class ChartPainter extends BaseChartPainter {
     if (!mMainRect.contains(touchPoint)) {
       return null;
     }
-    var index = getIndex(touchPoint.dx / scaleX - mTranslateX);
+    var index = getDoubleIndex(touchPoint.dx / scaleX - mTranslateX);
     var price = getMainPrice(touchPoint.dy);
     return DrawGraphValue(index, price);
   }
 
   //用户手动绘制的图形
   void drawGraphShap(Canvas canvas) {
-    canvas.save();
-    canvas.translate(mTranslateX * scaleX, 0.0);
-    canvas.scale(scaleX, 1.0);
-    // drawInactiveShape(canvas);
-    // drawActiveShape(canvas);
     //绘制没有交互的图形
     inactiveGraphs?.forEach((graph) {
       drawSingleShap(canvas, graph);
     });
     drawSingleShap(canvas, activeGraph);
     //绘制交互中的图形
-    canvas.restore();
     drawGraphPoints(canvas);
   }
 
@@ -570,7 +564,9 @@ class ChartPainter extends BaseChartPainter {
       return;
     }
     var points = graph.values.map((value) {
-      return Offset(getX(value.index), getMainY(value.price));
+      double dx = translateXtoX(getXFromDouble(value.index));
+      double dy = getMainY(value.price);
+      return Offset(dx, dy);
     }).toList();
     if (points.length < 2) {
       return;
@@ -594,7 +590,7 @@ class ChartPainter extends BaseChartPainter {
 
   void drawGraphPoints(Canvas canvas) {
     activeGraph?.values.forEach((value) {
-      double dx = translateXtoX(getX(value.index));
+      double dx = translateXtoX(getXFromDouble(value.index));
       double dy = getMainY(value.price);
       canvas.drawCircle(Offset(dx, dy), 4, _graphPaint);
     });
@@ -648,18 +644,13 @@ class ChartPainter extends BaseChartPainter {
   Offset getLeftEdgePoint(Offset p1, Offset p2) {
     // 斜率
     var slope = (p2.dy - p1.dy) / (p2.dx - p1.dx);
-    // 用mStartIndex前面的一个index，确保直线不会与画布边缘出现空隙
-    var pointX = getX(mStartIndex - 1);
-    var pointY = p1.dy - slope * (p1.dx - pointX);
-    return Offset(pointX, pointY);
+    var pointY = p1.dy - slope * p1.dx;
+    return Offset(0, pointY);
   }
 
   Offset getRightEdgePoint(Offset p1, Offset p2) {
     var slope = (p2.dy - p1.dy) / (p2.dx - p1.dx);
-    var leftEdgetPoint = getLeftEdgePoint(p1, p2);
-    // 初识点x+画布宽度+3倍点与点的间距（确保直线不会与画布边缘出现空隙）,需要除以放大缩小倍数
-    var rightEdgePointX =
-        leftEdgetPoint.dx + (mWidth + 3 * mPointWidth) / scaleX;
+    var rightEdgePointX = mWidth;
     var rightEdgePointY = p1.dy + slope * (rightEdgePointX - p1.dx);
     return Offset(rightEdgePointX, rightEdgePointY);
   }

@@ -6,7 +6,7 @@ enum DrawGraphType {
 }
 
 class DrawGraphValue {
-  int index;
+  double index;
   double price;
 
   DrawGraphValue(
