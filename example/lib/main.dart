@@ -48,6 +48,7 @@ class _MyHomePageState extends State<MyHomePage> {
   DrawGraphType drawType = DrawGraphType.segmentLine;
   ChartStyle chartStyle = ChartStyle();
   ChartColors chartColors = ChartColors();
+  KChartWidgetController chartContorller = KChartWidgetController();
 
   @override
   void initState() {
@@ -121,6 +122,7 @@ class _MyHomePageState extends State<MyHomePage> {
               maDayList: [1, 100, 1000],
               enableDrawGraph: enableDrawGraph,
               drawType: drawType,
+              controller: chartContorller,
             ),
           ),
           if (showLoading)
@@ -152,7 +154,8 @@ class _MyHomePageState extends State<MyHomePage> {
         button("Ray", onPressed: () => drawType = DrawGraphType.rayLine),
         button("Straight",
             onPressed: () => drawType = DrawGraphType.straightLine),
-        button("rect", onPressed: () => drawType = DrawGraphType.rectangle),
+        button("Rect", onPressed: () => drawType = DrawGraphType.rectangle),
+        button("Clear", onPressed: () => chartContorller.clearAllGraph()),
         button("Time Mode", onPressed: () => isLine = true),
         button("K Line Mode", onPressed: () => isLine = false),
         button("Line:MA", onPressed: () => _mainState = MainState.MA),

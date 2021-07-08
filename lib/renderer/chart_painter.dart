@@ -646,6 +646,7 @@ class ChartPainter extends BaseChartPainter {
   }
 
   Offset getLeftEdgePoint(Offset p1, Offset p2) {
+    // 斜率
     var slope = (p2.dy - p1.dy) / (p2.dx - p1.dx);
     // 用mStartIndex前面的一个index，确保直线不会与画布边缘出现空隙
     var pointX = getX(mStartIndex - 1);
@@ -656,8 +657,9 @@ class ChartPainter extends BaseChartPainter {
   Offset getRightEdgePoint(Offset p1, Offset p2) {
     var slope = (p2.dy - p1.dy) / (p2.dx - p1.dx);
     var leftEdgetPoint = getLeftEdgePoint(p1, p2);
-    // 初识点x+画布宽度+2倍点与点的间距（确保直线不会与画布边缘出现空隙）
-    var rightEdgePointX = leftEdgetPoint.dx + mWidth + 2 * mPointWidth;
+    // 初识点x+画布宽度+3倍点与点的间距（确保直线不会与画布边缘出现空隙）,需要除以放大缩小倍数
+    var rightEdgePointX =
+        leftEdgetPoint.dx + (mWidth + 3 * mPointWidth) / scaleX;
     var rightEdgePointY = p1.dy + slope * (rightEdgePointX - p1.dx);
     return Offset(rightEdgePointX, rightEdgePointY);
   }

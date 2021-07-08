@@ -24,6 +24,18 @@ class TimeFormat {
   ];
 }
 
+class KChartWidgetController {
+  _KChartWidgetState? _state;
+
+  void bindState(State state) {
+    _state = state as _KChartWidgetState?;
+  }
+
+  void clearAllGraph() {
+    _state?.clearAllGraph();
+  }
+}
+
 class KChartWidget extends StatefulWidget {
   final List<KLineEntity>? datas;
   final MainState mainState;
@@ -38,7 +50,6 @@ class KChartWidget extends StatefulWidget {
   final bool isChinese;
   final Map<String, ChartTranslations> translations;
   final List<String> timeFormat;
-  DrawGraphType? drawType;
 
   //当屏幕滚动到尽头会调用，真为拉到屏幕右侧尽头，假为拉到屏幕左侧尽头
   final Function(bool)? onLoadMore;
@@ -51,7 +62,11 @@ class KChartWidget extends StatefulWidget {
   final Function(bool)? isOnDrag;
   final ChartColors chartColors;
   final ChartStyle chartStyle;
+  //是否允许绘图
   final bool enableDrawGraph;
+  //绘图类型
+  final DrawGraphType? drawType;
+  final KChartWidgetController? controller;
 
   KChartWidget(
     this.datas,
@@ -77,6 +92,7 @@ class KChartWidget extends StatefulWidget {
     this.isOnDrag,
     this.enableDrawGraph = false,
     this.drawType,
+    this.controller,
   });
 
   @override
@@ -105,6 +121,7 @@ class _KChartWidgetState extends State<KChartWidget>
   @override
   void initState() {
     super.initState();
+    widget.controller?.bindState(this);
     mInfoWindowStream = StreamController<InfoWindowEntity?>();
     _currPriceController = AnimationController(
         duration: const Duration(milliseconds: 850), vsync: this);
@@ -221,6 +238,12 @@ class _KChartWidgetState extends State<KChartWidget>
         ],
       ),
     );
+  }
+
+  void clearAllGraph() {
+    _inactiveGraphs = [];
+    _activeGraph = null;
+    notifyChanged();
   }
 
   void _stopAnimation({bool needNotify = true}) {
