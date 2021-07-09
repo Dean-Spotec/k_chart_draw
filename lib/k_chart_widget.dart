@@ -259,7 +259,9 @@ class _KChartWidgetState extends State<KChartWidget>
   void mainRectTapped(ChartPainter painter, Offset touchPoint) {
     if (widget.enableDrawGraph) {
       drawGraphShape(painter, touchPoint);
-    } else {}
+    } else {
+      detectGraphShape(painter, touchPoint);
+    }
   }
 
   void drawGraphShape(ChartPainter painter, Offset touchPoint) {
@@ -303,7 +305,9 @@ class _KChartWidgetState extends State<KChartWidget>
     notifyChanged();
   }
 
-  void detectGraphShape() {}
+  DrawGraphEntity? detectGraphShape(ChartPainter painter, Offset touchPoint) {
+    return painter.detectGraphShape(touchPoint);
+  }
 
   void _onDragChanged(bool isOnDrag) {
     isDrag = isOnDrag;

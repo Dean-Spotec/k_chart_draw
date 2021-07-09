@@ -2,6 +2,7 @@ import 'dart:async' show StreamSink;
 
 import 'package:flutter/material.dart';
 import 'package:k_chart/entity/draw_graph_entity.dart';
+import 'package:k_chart/utils/distance_util.dart';
 import 'package:k_chart/utils/number_util.dart';
 
 import '../entity/info_window_entity.dart';
@@ -32,7 +33,7 @@ class ChartPainter extends BaseChartPainter {
   AnimationController? controller;
   double opacity;
   List<double>? specifiedPrice;
-  List<DrawGraphEntity>? inactiveGraphs;
+  List<DrawGraphEntity> inactiveGraphs;
   DrawGraphEntity? activeGraph;
 
   var _twinklPaint = Paint();
@@ -60,7 +61,7 @@ class ChartPainter extends BaseChartPainter {
     this.controller,
     this.opacity = 0.0,
     this.specifiedPrice,
-    this.inactiveGraphs,
+    this.inactiveGraphs = const [],
     this.activeGraph,
   })  : assert(bgColor == null || bgColor.length >= 2),
         super(chartStyle,
@@ -551,7 +552,7 @@ class ChartPainter extends BaseChartPainter {
   //用户手动绘制的图形
   void drawGraphShap(Canvas canvas) {
     //绘制没有交互的图形
-    inactiveGraphs?.forEach((graph) {
+    inactiveGraphs.forEach((graph) {
       drawSingleShap(canvas, graph);
     });
     drawSingleShap(canvas, activeGraph);
@@ -658,5 +659,40 @@ class ChartPainter extends BaseChartPainter {
   void drawRectangle(Canvas canvas, List<Offset> points) {
     var rect = Rect.fromPoints(points.first, points.last);
     canvas.drawRect(rect, _graphPaint);
+  }
+
+  DrawGraphEntity? detectGraphShape(Offset touchPoint) {
+    if (inactiveGraphs.isEmpty) {
+      return null;
+    }
+    var singleLineGraphs = inactiveGraphs.where((graph) {
+      switch (graph.drawType) {
+        case DrawGraphType.segmentLine:
+        case DrawGraphType.rayLine:
+        case DrawGraphType.straightLine:
+          return true;
+        default:
+          return false;
+      }
+    }).toList();
+
+    if (singleLineGraphs.isNotEmpty) {
+      singleLineGraphs.sort((lh, rh) {
+        var lhd = distanceToSegment(touchPoint, lh.values);
+        var rhd = distanceToSegment(touchPoint, rh.values);
+        return lhd.compareTo(rhd);
+      });
+      print(distanceToSegment(touchPoint, singleLineGraphs.first.values));
+    }
+  }
+
+  double distanceToSegment(Offset touchPoint, List<DrawGraphValue> lineValues) {
+    var value1 = lineValues.first;
+    var value2 = lineValues.last;
+    var p1 = Offset(
+        translateXtoX(getXFromDouble(value1.index)), getMainY(value1.price));
+    var p2 = Offset(
+        translateXtoX(getXFromDouble(value2.index)), getMainY(value2.price));
+    return DistanceUtil.distanceToSegment(touchPoint, p1, p2);
   }
 }
