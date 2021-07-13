@@ -3,6 +3,14 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 class DistanceUtil {
+  static double distanceToPoint(Offset p1, Offset p2) {
+    var x1 = p1.dx;
+    var y1 = p1.dy;
+    var x2 = p2.dx;
+    var y2 = p2.dy;
+    return math.sqrt(math.pow(x1 - x2, 2) + math.pow(y1 - y2, 2));
+  }
+
   // 点到线段的距离
   static double distanceToSegment(
       Offset point, Offset linePoint1, Offset linePoint2) {

@@ -5,11 +5,11 @@ enum DrawGraphType {
   rectangle,
 }
 
-class DrawGraphValue {
+class DrawGraphRawValue {
   double index;
   double price;
 
-  DrawGraphValue(
+  DrawGraphRawValue(
     this.index,
     this.price,
   );
@@ -17,7 +17,7 @@ class DrawGraphValue {
 
 class DrawGraphEntity {
   DrawGraphType drawType;
-  List<DrawGraphValue> values;
+  List<DrawGraphRawValue> values;
 
   DrawGraphEntity(
     this.drawType,

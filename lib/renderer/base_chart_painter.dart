@@ -298,7 +298,7 @@ abstract class BaseChartPainter extends CustomPainter {
   double getX(int index) => index * mPointWidth + mPointWidth / 2;
   double getXFromDouble(double index) => index * mPointWidth + mPointWidth / 2;
 
-  ///根据索引索取x坐标
+  ///根据x坐标获取索引
   double getDoubleIndex(double positon) =>
       (positon - mPointWidth / 2) / mPointWidth;
 

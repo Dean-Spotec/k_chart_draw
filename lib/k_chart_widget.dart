@@ -62,10 +62,13 @@ class KChartWidget extends StatefulWidget {
   final Function(bool)? isOnDrag;
   final ChartColors chartColors;
   final ChartStyle chartStyle;
+  //是否是绘图模式。绘图模式不显示附图，长按不显示价格图标。
+  final bool isDrawingModel;
   //是否允许绘图
   final bool enableDrawGraph;
   //绘图类型
   final DrawGraphType? drawType;
+  //外部组件调用，清空画线等功能
   final KChartWidgetController? controller;
 
   KChartWidget(
@@ -90,6 +93,7 @@ class KChartWidget extends StatefulWidget {
     this.flingRatio = 0.5,
     this.flingCurve = Curves.decelerate,
     this.isOnDrag,
+    this.isDrawingModel = true,
     this.enableDrawGraph = false,
     this.drawType,
     this.controller,
@@ -116,7 +120,12 @@ class _KChartWidgetState extends State<KChartWidget>
   double _lastScale = 1.0;
   bool isScale = false, isDrag = false, isLongPress = false;
   List<DrawGraphEntity> _inactiveGraphs = [];
+  // 当前编辑中的图形
   DrawGraphEntity? _activeGraph;
+  // 长按手势的起点的value值
+  DrawGraphRawValue? _currentPressValue;
+  // 选中锚点在DrawGraphEntity的value数组中的索引
+  int? _pressAnchorIndex;
 
   @override
   void initState() {
@@ -179,7 +188,7 @@ class _KChartWidgetState extends State<KChartWidget>
             _painter.isInSecondaryRect(details.localPosition)) {
           widget.onSecondaryTap!();
         } else {
-          mainRectTapped(_painter, details.localPosition);
+          _mainRectTapped(_painter, details.localPosition);
         }
       },
       onHorizontalDragDown: (details) {
@@ -211,22 +220,34 @@ class _KChartWidgetState extends State<KChartWidget>
         _lastScale = mScaleX;
       },
       onLongPressStart: (details) {
-        isLongPress = true;
-        // if (mSelectX != details.globalPosition.dx) {
-        //   mSelectX = details.globalPosition.dx;
-        //   notifyChanged();
-        // }
+        if (widget.isDrawingModel) {
+          _beginMoveActiveGraph(_painter, details.localPosition);
+        } else {
+          isLongPress = true;
+          if (mSelectX != details.globalPosition.dx) {
+            mSelectX = details.globalPosition.dx;
+            notifyChanged();
+          }
+        }
       },
       onLongPressMoveUpdate: (details) {
-        // if (mSelectX != details.globalPosition.dx) {
-        //   mSelectX = details.globalPosition.dx;
-        //   notifyChanged();
-        // }
+        if (widget.isDrawingModel) {
+          _moveActiveGraph(_painter, details.localPosition);
+        } else {
+          if (mSelectX != details.globalPosition.dx) {
+            mSelectX = details.globalPosition.dx;
+            notifyChanged();
+          }
+        }
       },
       onLongPressEnd: (details) {
-        isLongPress = false;
-        mInfoWindowStream?.sink.add(null);
-        notifyChanged();
+        if (widget.isDrawingModel) {
+          _currentPressValue = null;
+        } else {
+          isLongPress = false;
+          mInfoWindowStream?.sink.add(null);
+          notifyChanged();
+        }
       },
       child: Stack(
         children: <Widget>[
@@ -240,6 +261,7 @@ class _KChartWidgetState extends State<KChartWidget>
     );
   }
 
+  // 清空所有绘制的图形
   void clearAllGraph() {
     _inactiveGraphs = [];
     _activeGraph = null;
@@ -256,15 +278,17 @@ class _KChartWidgetState extends State<KChartWidget>
     }
   }
 
-  void mainRectTapped(ChartPainter painter, Offset touchPoint) {
+  void _mainRectTapped(ChartPainter painter, Offset touchPoint) {
     if (widget.enableDrawGraph) {
-      drawGraphShape(painter, touchPoint);
+      _drawGraphShape(painter, touchPoint);
     } else {
-      detectGraphShape(painter, touchPoint);
+      setState(() {
+        _activeGraph = painter.detectInactiveGraphs(touchPoint);
+      });
     }
   }
 
-  void drawGraphShape(ChartPainter painter, Offset touchPoint) {
+  void _drawGraphShape(ChartPainter painter, Offset touchPoint) {
     if (widget.drawType == null) {
       return;
     }
@@ -277,7 +301,7 @@ class _KChartWidgetState extends State<KChartWidget>
           _activeGraph = DrawGraphEntity(widget.drawType!, []);
         }
         if (_activeGraph!.values.length < 2) {
-          var value = painter.calculateGraphValue(touchPoint);
+          var value = painter.calculateTouchRawValue(touchPoint);
           if (value == null) {
             if (widget.outMainTap != null) {
               widget.outMainTap!();
@@ -287,13 +311,13 @@ class _KChartWidgetState extends State<KChartWidget>
           }
           notifyChanged();
         } else {
-          endDrawGraph();
+          _finishDrawGraph();
         }
         break;
     }
   }
 
-  void endDrawGraph() {
+  void _finishDrawGraph() {
     if (_activeGraph == null) {
       return;
     }
@@ -303,10 +327,6 @@ class _KChartWidgetState extends State<KChartWidget>
     }
     _activeGraph = null;
     notifyChanged();
-  }
-
-  DrawGraphEntity? detectGraphShape(ChartPainter painter, Offset touchPoint) {
-    return painter.detectGraphShape(touchPoint);
   }
 
   void _onDragChanged(bool isOnDrag) {
@@ -348,6 +368,39 @@ class _KChartWidgetState extends State<KChartWidget>
       }
     });
     _controller!.forward();
+  }
+
+  // 长按开始移动正在编辑的图形
+  void _beginMoveActiveGraph(ChartPainter painter, Offset position) {
+    if (_activeGraph == null || !painter.canMoveActiveGraph(position)) {
+      return;
+    }
+    _currentPressValue = painter.calculateTouchRawValue(position);
+    _pressAnchorIndex = painter.detectAnchorPointIndex(position);
+  }
+
+  // 移动正在编辑的图形
+  void _moveActiveGraph(ChartPainter painter, Offset position) {
+    var nextValue = painter.calculateMoveRawValue(position);
+    if (_activeGraph == null ||
+        nextValue == null ||
+        _currentPressValue == null) {
+      return;
+    }
+    // 计算和上一个点的偏移
+    var offset = Offset(nextValue.index - _currentPressValue!.index,
+        nextValue.price - _currentPressValue!.price);
+    if (_pressAnchorIndex == null) {
+      _activeGraph?.values.forEach((value) {
+        value.index += offset.dx;
+        value.price += offset.dy;
+      });
+    } else {
+      _activeGraph!.values[_pressAnchorIndex!].index += offset.dx;
+      _activeGraph!.values[_pressAnchorIndex!].price += offset.dy;
+    }
+    _currentPressValue = nextValue;
+    notifyChanged();
   }
 
   void notifyChanged() => setState(() {});
