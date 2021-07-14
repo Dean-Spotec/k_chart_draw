@@ -31,8 +31,12 @@ class KChartWidgetController {
     _state = state as _KChartWidgetState?;
   }
 
-  void clearAllGraph() {
-    _state?.clearAllGraph();
+  void finishDrawUserGraphs() {
+    _state?.finishDrawUserGraphs();
+  }
+
+  void clearActiveGraph() {
+    _state?.clearActiveGraph();
   }
 }
 
@@ -62,14 +66,16 @@ class KChartWidget extends StatefulWidget {
   final Function(bool)? isOnDrag;
   final ChartColors chartColors;
   final ChartStyle chartStyle;
-  //是否是绘图模式。绘图模式不显示附图，长按不显示价格图标。
-  final bool isDrawingModel;
-  //是否允许绘图
-  final bool enableDrawGraph;
-  //绘图类型
-  final DrawGraphType? drawType;
-  //外部组件调用，清空画线等功能
+
   final KChartWidgetController? controller;
+  // 是否是绘图模式，绘图模式长按不显示价格图标。
+  final bool isDrawingModel;
+  // 绘图类型
+  final UserGraphType? userDrawType;
+  // 需要绘制的图形
+  final List<UserGraphEntity> userGraphs;
+  // 完成绘制图形的回调
+  final Function(UserGraphEntity)? finishDrawUserGraphs;
 
   KChartWidget(
     this.datas,
@@ -93,10 +99,11 @@ class KChartWidget extends StatefulWidget {
     this.flingRatio = 0.5,
     this.flingCurve = Curves.decelerate,
     this.isOnDrag,
-    this.isDrawingModel = true,
-    this.enableDrawGraph = false,
-    this.drawType,
     this.controller,
+    this.isDrawingModel = false,
+    this.userDrawType,
+    this.userGraphs = const [],
+    this.finishDrawUserGraphs,
   });
 
   @override
@@ -110,20 +117,17 @@ class _KChartWidgetState extends State<KChartWidget>
   double mWidth = 0;
   AnimationController? _controller;
   Animation<double>? aniX;
-  late AnimationController _currPriceController;
-  late Animation<double> _currPriceAnimation;
+  double _lastScale = 1.0;
+  bool isScale = false, isDrag = false, isLongPress = false;
 
   double getMinScrollX() {
     return mScaleX;
   }
 
-  double _lastScale = 1.0;
-  bool isScale = false, isDrag = false, isLongPress = false;
-  List<DrawGraphEntity> _inactiveGraphs = [];
   // 当前编辑中的图形
-  DrawGraphEntity? _activeGraph;
-  // 长按手势的起点的value值
-  DrawGraphRawValue? _currentPressValue;
+  UserGraphEntity? _activeGraph;
+  // 长按手势当前点的value值
+  UserGraphRawValue? _currentPressValue;
   // 选中锚点在DrawGraphEntity的value数组中的索引
   int? _pressAnchorIndex;
 
@@ -132,11 +136,6 @@ class _KChartWidgetState extends State<KChartWidget>
     super.initState();
     widget.controller?.bindState(this);
     mInfoWindowStream = StreamController<InfoWindowEntity?>();
-    _currPriceController = AnimationController(
-        duration: const Duration(milliseconds: 850), vsync: this);
-    _currPriceAnimation =
-        Tween(begin: 0.9, end: 0.1).animate(_currPriceController);
-    // ..addListener(() => setState(() {}));
   }
 
   @override
@@ -149,7 +148,6 @@ class _KChartWidgetState extends State<KChartWidget>
   void dispose() {
     mInfoWindowStream?.close();
     _controller?.dispose();
-    _currPriceController.dispose();
     super.dispose();
   }
 
@@ -176,24 +174,26 @@ class _KChartWidgetState extends State<KChartWidget>
       bgColor: widget.bgColor,
       fixedLength: widget.fixedLength,
       maDayList: widget.maDayList,
-      controller: _currPriceController,
-      opacity: _currPriceAnimation.value,
       specifiedPrice: [33100, 29000, 41000],
-      inactiveGraphs: _inactiveGraphs,
+      inactiveGraphs: widget.userGraphs,
       activeGraph: _activeGraph,
     );
     return GestureDetector(
       onTapUp: (details) {
+        if (_painter.isInMainRect(details.localPosition)) {
+          _mainRectTapped(_painter, details.localPosition);
+        }
         if (widget.onSecondaryTap != null &&
             _painter.isInSecondaryRect(details.localPosition)) {
           widget.onSecondaryTap!();
-        } else {
-          _mainRectTapped(_painter, details.localPosition);
         }
       },
       onHorizontalDragDown: (details) {
         _stopAnimation();
         _onDragChanged(true);
+      },
+      onHorizontalDragStart: (_) {
+        finishDrawUserGraphs();
       },
       onHorizontalDragUpdate: (details) {
         if (isScale || isLongPress) return;
@@ -262,10 +262,8 @@ class _KChartWidgetState extends State<KChartWidget>
   }
 
   // 清空所有绘制的图形
-  void clearAllGraph() {
-    _inactiveGraphs = [];
+  void clearActiveGraph() {
     _activeGraph = null;
-    notifyChanged();
   }
 
   void _stopAnimation({bool needNotify = true}) {
@@ -279,26 +277,26 @@ class _KChartWidgetState extends State<KChartWidget>
   }
 
   void _mainRectTapped(ChartPainter painter, Offset touchPoint) {
-    if (widget.enableDrawGraph) {
-      _drawGraphShape(painter, touchPoint);
-    } else {
+    if (!widget.isDrawingModel) {
+      return;
+    }
+    if (widget.userDrawType == null) {
       setState(() {
         _activeGraph = painter.detectInactiveGraphs(touchPoint);
       });
+    } else {
+      _drawUserGraph(painter, touchPoint);
     }
   }
 
-  void _drawGraphShape(ChartPainter painter, Offset touchPoint) {
-    if (widget.drawType == null) {
-      return;
-    }
-    switch (widget.drawType!) {
-      case DrawGraphType.segmentLine:
-      case DrawGraphType.rayLine:
-      case DrawGraphType.straightLine:
-      case DrawGraphType.rectangle:
+  void _drawUserGraph(ChartPainter painter, Offset touchPoint) {
+    switch (widget.userDrawType!) {
+      case UserGraphType.segmentLine:
+      case UserGraphType.rayLine:
+      case UserGraphType.straightLine:
+      case UserGraphType.rectangle:
         if (_activeGraph == null) {
-          _activeGraph = DrawGraphEntity(widget.drawType!, []);
+          _activeGraph = UserGraphEntity(widget.userDrawType!, []);
         }
         if (_activeGraph!.values.length < 2) {
           var value = painter.calculateTouchRawValue(touchPoint);
@@ -311,22 +309,21 @@ class _KChartWidgetState extends State<KChartWidget>
           }
           notifyChanged();
         } else {
-          _finishDrawGraph();
+          finishDrawUserGraphs();
         }
         break;
     }
   }
 
-  void _finishDrawGraph() {
+  void finishDrawUserGraphs() {
     if (_activeGraph == null) {
       return;
     }
     //length>=2才是有效图形
     if (_activeGraph!.values.length >= 2) {
-      _inactiveGraphs.add(_activeGraph!);
+      widget.finishDrawUserGraphs?.call(_activeGraph!);
     }
-    _activeGraph = null;
-    notifyChanged();
+    clearActiveGraph();
   }
 
   void _onDragChanged(bool isOnDrag) {

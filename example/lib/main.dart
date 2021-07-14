@@ -44,11 +44,11 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _hideGrid = false;
   List<DepthEntity>? _bids, _asks;
   bool isChangeUI = false;
-  bool enableDrawGraph = false;
-  DrawGraphType drawType = DrawGraphType.segmentLine;
   ChartStyle chartStyle = ChartStyle();
   ChartColors chartColors = ChartColors();
-  KChartWidgetController chartContorller = KChartWidgetController();
+  UserGraphType? _userDrawType;
+  KChartWidgetController _chartContorller = KChartWidgetController();
+  List<UserGraphEntity> _userGraphs = [];
 
   @override
   void initState() {
@@ -120,9 +120,16 @@ class _MyHomePageState extends State<MyHomePage> {
               isChinese: isChinese,
               hideGrid: _hideGrid,
               maDayList: [1, 100, 1000],
-              enableDrawGraph: enableDrawGraph,
-              drawType: drawType,
-              controller: chartContorller,
+              controller: _chartContorller,
+              isDrawingModel: true,
+              userDrawType: _userDrawType,
+              userGraphs: _userGraphs,
+              finishDrawUserGraphs: (graph) {
+                setState(() {
+                  _userDrawType = null;
+                  _userGraphs.add(graph);
+                });
+              },
             ),
           ),
           if (showLoading)
@@ -147,15 +154,27 @@ class _MyHomePageState extends State<MyHomePage> {
     return Wrap(
       alignment: WrapAlignment.spaceEvenly,
       children: <Widget>[
-        button("Enable Draw", onPressed: () => enableDrawGraph = true),
-        button("Disable Draw", onPressed: () => enableDrawGraph = false),
-        button("Segment",
-            onPressed: () => drawType = DrawGraphType.segmentLine),
-        button("Ray", onPressed: () => drawType = DrawGraphType.rayLine),
-        button("Straight",
-            onPressed: () => drawType = DrawGraphType.straightLine),
-        button("Rect", onPressed: () => drawType = DrawGraphType.rectangle),
-        button("Clear", onPressed: () => chartContorller.clearAllGraph()),
+        button("Segment", onPressed: () {
+          _chartContorller.finishDrawUserGraphs();
+          _userDrawType = UserGraphType.segmentLine;
+        }),
+        button("Ray", onPressed: () {
+          _chartContorller.finishDrawUserGraphs();
+          _userDrawType = UserGraphType.rayLine;
+        }),
+        button("Straight", onPressed: () {
+          _chartContorller.finishDrawUserGraphs();
+          _userDrawType = UserGraphType.straightLine;
+        }),
+        button("Rect", onPressed: () {
+          _chartContorller.finishDrawUserGraphs();
+          _userDrawType = UserGraphType.rectangle;
+        }),
+        button("Clear", onPressed: () {
+          _userGraphs = [];
+          _userDrawType = null;
+          _chartContorller.clearActiveGraph();
+        }),
         button("Time Mode", onPressed: () => isLine = true),
         button("K Line Mode", onPressed: () => isLine = false),
         button("Line:MA", onPressed: () => _mainState = MainState.MA),

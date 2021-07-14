@@ -1,25 +1,25 @@
-enum DrawGraphType {
+enum UserGraphType {
   segmentLine,
   rayLine,
   straightLine,
   rectangle,
 }
 
-class DrawGraphRawValue {
+class UserGraphRawValue {
   double index;
   double price;
 
-  DrawGraphRawValue(
+  UserGraphRawValue(
     this.index,
     this.price,
   );
 }
 
-class DrawGraphEntity {
-  DrawGraphType drawType;
-  List<DrawGraphRawValue> values;
+class UserGraphEntity {
+  UserGraphType drawType;
+  List<UserGraphRawValue> values;
 
-  DrawGraphEntity(
+  UserGraphEntity(
     this.drawType,
     this.values,
   );

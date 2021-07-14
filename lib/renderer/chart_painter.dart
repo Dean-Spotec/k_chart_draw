@@ -31,11 +31,10 @@ class ChartPainter extends BaseChartPainter {
   Paint? selectPointPaint, selectorBorderPaint;
   final ChartStyle chartStyle;
   final bool hideGrid;
-  AnimationController? controller;
-  double opacity;
+  final bool isDrawingModel;
   List<double>? specifiedPrice;
-  List<DrawGraphEntity> inactiveGraphs;
-  DrawGraphEntity? activeGraph;
+  List<UserGraphEntity> inactiveGraphs;
+  UserGraphEntity? activeGraph;
 
   final _graphDetectWidth = 5.0;
   var _twinklPaint = Paint();
@@ -60,9 +59,8 @@ class ChartPainter extends BaseChartPainter {
     this.bgColor,
     this.fixedLength = 2,
     this.maDayList = const [5, 10, 20],
-    this.controller,
-    this.opacity = 0.0,
     this.specifiedPrice,
+    this.isDrawingModel = false,
     this.inactiveGraphs = const [],
     this.activeGraph,
   })  : assert(bgColor == null || bgColor.length >= 2),
@@ -416,8 +414,8 @@ class ChartPainter extends BaseChartPainter {
       //画一闪一闪
       if (isLine) {
         // startAnimation();
-        Gradient pointGradient = RadialGradient(
-            colors: [Colors.white.withOpacity(opacity), Colors.transparent]);
+        Gradient pointGradient =
+            RadialGradient(colors: [Colors.white, Colors.transparent]);
         _twinklPaint.shader = pointGradient
             .createShader(Rect.fromCircle(center: Offset(x, y), radius: 14.0));
         canvas.drawCircle(Offset(x, y), 14.0, _twinklPaint);
@@ -433,7 +431,6 @@ class ChartPainter extends BaseChartPainter {
           _realTimePaint..color = ChartColors.realTimeBgColor);
       tp.paint(canvas, Offset(left, top));
     } else {
-      stopAnimation(); //停止一闪闪
       startX = 0;
       if (point.close > mMainMaxValue) {
         y = getMainY(mMainMaxValue);
@@ -505,14 +502,6 @@ class ChartPainter extends BaseChartPainter {
     }
   }
 
-  startAnimation() {
-    if (controller?.isAnimating != true) controller?.repeat(reverse: true);
-  }
-
-  stopAnimation() {
-    if (controller?.isAnimating == true) controller?.stop();
-  }
-
   TextPainter getTextPainter(text, color) {
     if (color == null) {
       color = this.chartColors.defaultTextColor;
@@ -531,6 +520,11 @@ class ChartPainter extends BaseChartPainter {
   double getMainY(double y) => mMainRenderer.getY(y);
   double getMainPrice(double y) => mMainRenderer.getPrice(y);
 
+  /// 点是否在MainRect中
+  bool isInMainRect(Offset point) {
+    return mMainRect.contains(point);
+  }
+
   /// 点是否在SecondaryRect中
   bool isInSecondaryRect(Offset point) {
     return mSecondaryRect?.contains(point) ?? false;
@@ -542,17 +536,14 @@ class ChartPainter extends BaseChartPainter {
     ..color = Colors.red;
 
   // 计算点击手势的点在k线图中对应的index和价格
-  DrawGraphRawValue? calculateTouchRawValue(Offset touchPoint) {
-    if (!mMainRect.contains(touchPoint)) {
-      return null;
-    }
+  UserGraphRawValue? calculateTouchRawValue(Offset touchPoint) {
     var index = getDoubleIndex(touchPoint.dx / scaleX - mTranslateX);
     var price = getMainPrice(touchPoint.dy);
-    return DrawGraphRawValue(index, price);
+    return UserGraphRawValue(index, price);
   }
 
   // 计算移动手势的点在k线图中对应的index和价格
-  DrawGraphRawValue? calculateMoveRawValue(Offset movePoint) {
+  UserGraphRawValue? calculateMoveRawValue(Offset movePoint) {
     var index = getDoubleIndex(movePoint.dx / scaleX - mTranslateX);
     var dy = movePoint.dy;
     if (movePoint.dy < mMainRect.top) {
@@ -562,11 +553,13 @@ class ChartPainter extends BaseChartPainter {
       dy = mMainRect.bottom;
     }
     var price = getMainPrice(dy);
-    return DrawGraphRawValue(index, price);
+    return UserGraphRawValue(index, price);
   }
 
   // 用户手动绘制的图形
   void _drawUserGraph(Canvas canvas) {
+    canvas.save();
+    canvas.clipRect(mMainRect);
     //绘制没有交互的图形
     inactiveGraphs.forEach((graph) {
       _drawSingleGraph(canvas, graph);
@@ -574,10 +567,11 @@ class ChartPainter extends BaseChartPainter {
     _drawSingleGraph(canvas, activeGraph);
     // 绘制交互中的图形
     _drawGraphAnchorPoints(canvas);
+    canvas.restore();
   }
 
   // 绘制单个图形
-  void _drawSingleGraph(Canvas canvas, DrawGraphEntity? graph) {
+  void _drawSingleGraph(Canvas canvas, UserGraphEntity? graph) {
     if (graph == null) {
       return;
     }
@@ -591,16 +585,16 @@ class ChartPainter extends BaseChartPainter {
       return;
     }
     switch (graph.drawType) {
-      case DrawGraphType.segmentLine:
+      case UserGraphType.segmentLine:
         _drawSegmentLine(canvas, points);
         break;
-      case DrawGraphType.rayLine:
+      case UserGraphType.rayLine:
         _drawRayLine(canvas, points);
         break;
-      case DrawGraphType.straightLine:
+      case UserGraphType.straightLine:
         _drawStraightLine(canvas, points);
         break;
-      case DrawGraphType.rectangle:
+      case UserGraphType.rectangle:
         _drawRectangle(canvas, points);
         break;
       default:
@@ -636,15 +630,7 @@ class ChartPainter extends BaseChartPainter {
       // 端点在画布左侧
       endPoint = leftEdgePoint;
     }
-
-    canvas.save();
-    canvas.clipRect(Rect.fromLTWH(
-        leftEdgePoint.dx,
-        0,
-        rightEdgePoint.dx - leftEdgePoint.dx,
-        mMainRect.height + mMainRect.top));
     canvas.drawLine(p1, endPoint, _graphPaint);
-    canvas.restore();
   }
 
   // 绘制直线
@@ -653,15 +639,7 @@ class ChartPainter extends BaseChartPainter {
     var p2 = points.last;
     var leftEdgePoint = _getLeftEdgePoint(p1, p2);
     var rightEdgePoint = _getRightEdgePoint(p1, p2);
-
-    canvas.save();
-    canvas.clipRect(Rect.fromLTWH(
-        leftEdgePoint.dx,
-        0,
-        rightEdgePoint.dx - leftEdgePoint.dx,
-        mMainRect.height + mMainRect.top));
     canvas.drawLine(leftEdgePoint, rightEdgePoint, _graphPaint);
-    canvas.restore();
   }
 
   // 绘制矩形
@@ -696,8 +674,8 @@ class ChartPainter extends BaseChartPainter {
   }
 
   // 根据touch点，查找离它最近的非编辑中的图形
-  DrawGraphEntity? detectInactiveGraphs(Offset touchPoint) {
-    if (!mMainRect.contains(touchPoint) || inactiveGraphs.isEmpty) {
+  UserGraphEntity? detectInactiveGraphs(Offset touchPoint) {
+    if (inactiveGraphs.isEmpty) {
       return null;
     }
     var line = _detectSingleLine(touchPoint);
@@ -711,12 +689,12 @@ class ChartPainter extends BaseChartPainter {
   }
 
   // 根据touch点查找线形
-  DrawGraphEntity? _detectSingleLine(Offset touchPoint) {
+  UserGraphEntity? _detectSingleLine(Offset touchPoint) {
     var singleLineGraphs = inactiveGraphs.where((graph) {
       switch (graph.drawType) {
-        case DrawGraphType.segmentLine:
-        case DrawGraphType.rayLine:
-        case DrawGraphType.straightLine:
+        case UserGraphType.segmentLine:
+        case UserGraphType.rayLine:
+        case UserGraphType.straightLine:
           return true;
         default:
           return false;
@@ -741,17 +719,10 @@ class ChartPainter extends BaseChartPainter {
   }
 
   // 根据touch点查找矩形
-  DrawGraphEntity? _detectRectangle(Offset touchPoint) {
+  UserGraphEntity? _detectRectangle(Offset touchPoint) {
     return inactiveGraphs.reversed.firstWhereOrNull((graph) {
-      if (graph.drawType == DrawGraphType.rectangle) {
-        var p1 = Offset(graph.values.first.index, graph.values.first.price);
-        var p2 = Offset(graph.values.last.index, graph.values.last.price);
-        var valueRect = Rect.fromPoints(p1, p2);
-        var touchValue = calculateTouchRawValue(touchPoint);
-        var valuePoint = Offset(touchValue!.index, touchValue.price);
-        if (valueRect.contains(valuePoint)) {
-          return true;
-        }
+      if (graph.drawType == UserGraphType.rectangle) {
+        return _isPointInRectangle(touchPoint, graph);
       }
       return false;
     });
@@ -780,12 +751,12 @@ class ChartPainter extends BaseChartPainter {
   // 根据长按开始点计算编辑中图形是否可以移动
   bool canMoveActiveGraph(Offset touchPoint) {
     switch (activeGraph!.drawType) {
-      case DrawGraphType.segmentLine:
-      case DrawGraphType.rayLine:
-      case DrawGraphType.straightLine:
+      case UserGraphType.segmentLine:
+      case UserGraphType.rayLine:
+      case UserGraphType.straightLine:
         var distance = _distanceToSingleLine(touchPoint, activeGraph!);
         return distance < _graphDetectWidth;
-      case DrawGraphType.rectangle:
+      case UserGraphType.rectangle:
         return _isPointInRectangle(touchPoint, activeGraph!);
       default:
         return false;
@@ -793,17 +764,19 @@ class ChartPainter extends BaseChartPainter {
   }
 
   // 点是否在矩形中
-  bool _isPointInRectangle(Offset touchPoint, DrawGraphEntity graph) {
-    var p1 = Offset(graph.values.first.index, graph.values.first.price);
-    var p2 = Offset(graph.values.last.index, graph.values.last.price);
+  bool _isPointInRectangle(Offset touchPoint, UserGraphEntity graph) {
+    var value1 = graph.values.first;
+    var value2 = graph.values.last;
+    var p1 = Offset(
+        translateXtoX(getXFromDouble(value1.index)), getMainY(value1.price));
+    var p2 = Offset(
+        translateXtoX(getXFromDouble(value2.index)), getMainY(value2.price));
     var valueRect = Rect.fromPoints(p1, p2).inflate(_graphDetectWidth);
-    var touchValue = calculateTouchRawValue(touchPoint);
-    var valuePoint = Offset(touchValue!.index, touchValue.price);
-    return valueRect.contains(valuePoint);
+    return valueRect.contains(touchPoint);
   }
 
   // 点到线形的距离
-  double _distanceToSingleLine(Offset touchPoint, DrawGraphEntity graph) {
+  double _distanceToSingleLine(Offset touchPoint, UserGraphEntity graph) {
     var value1 = graph.values.first;
     var value2 = graph.values.last;
     var p1 = Offset(
@@ -814,17 +787,17 @@ class ChartPainter extends BaseChartPainter {
     var rightEdgePoint = _getRightEdgePoint(p1, p2);
 
     switch (graph.drawType) {
-      case DrawGraphType.segmentLine:
+      case UserGraphType.segmentLine:
         return DistanceUtil.distanceToSegment(touchPoint, p1, p2);
-      case DrawGraphType.rayLine:
+      case UserGraphType.rayLine:
         if (p1.dx < p2.dx) {
           // 端点在画布右侧
           return DistanceUtil.distanceToSegment(touchPoint, p1, rightEdgePoint);
         } else {
           // 端点在画布左侧
-          return DistanceUtil.distanceToSegment(touchPoint, leftEdgePoint, p2);
+          return DistanceUtil.distanceToSegment(touchPoint, leftEdgePoint, p1);
         }
-      case DrawGraphType.straightLine:
+      case UserGraphType.straightLine:
         return DistanceUtil.distanceToSegment(
             touchPoint, leftEdgePoint, rightEdgePoint);
       default:
@@ -834,7 +807,7 @@ class ChartPainter extends BaseChartPainter {
 
   // 点到各种形状的锚点的距离
   double _distanceToGraphAnchorPoint(
-      Offset touchPoint, DrawGraphRawValue anchorValue) {
+      Offset touchPoint, UserGraphRawValue anchorValue) {
     var anchorPoint = Offset(translateXtoX(getXFromDouble(anchorValue.index)),
         getMainY(anchorValue.price));
     return DistanceUtil.distanceToPoint(touchPoint, anchorPoint);
