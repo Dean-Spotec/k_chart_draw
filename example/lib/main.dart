@@ -124,10 +124,9 @@ class _MyHomePageState extends State<MyHomePage> {
               isDrawingModel: true,
               userDrawType: _userDrawType,
               userGraphs: _userGraphs,
-              finishDrawUserGraphs: (graph) {
+              finishDrawUserGraphs: () {
                 setState(() {
                   _userDrawType = null;
-                  _userGraphs.add(graph);
                 });
               },
             ),
@@ -155,25 +154,28 @@ class _MyHomePageState extends State<MyHomePage> {
       alignment: WrapAlignment.spaceEvenly,
       children: <Widget>[
         button("Segment", onPressed: () {
-          _chartContorller.finishDrawUserGraphs();
+          _chartContorller.resetUserGraphs();
           _userDrawType = UserGraphType.segmentLine;
         }),
         button("Ray", onPressed: () {
-          _chartContorller.finishDrawUserGraphs();
+          _chartContorller.resetUserGraphs();
           _userDrawType = UserGraphType.rayLine;
         }),
         button("Straight", onPressed: () {
-          _chartContorller.finishDrawUserGraphs();
+          _chartContorller.resetUserGraphs();
           _userDrawType = UserGraphType.straightLine;
         }),
         button("Rect", onPressed: () {
-          _chartContorller.finishDrawUserGraphs();
+          _chartContorller.resetUserGraphs();
           _userDrawType = UserGraphType.rectangle;
         }),
-        button("Clear", onPressed: () {
+        button("Clear All", onPressed: () {
           _userGraphs = [];
           _userDrawType = null;
-          _chartContorller.clearActiveGraph();
+        }),
+        button("Clear Active", onPressed: () {
+          _chartContorller.removeActiveUserGraph();
+          _userDrawType = null;
         }),
         button("Time Mode", onPressed: () => isLine = true),
         button("K Line Mode", onPressed: () => isLine = false),

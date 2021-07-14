@@ -18,6 +18,7 @@ class UserGraphRawValue {
 class UserGraphEntity {
   UserGraphType drawType;
   List<UserGraphRawValue> values;
+  bool isActive = false;
 
   UserGraphEntity(
     this.drawType,

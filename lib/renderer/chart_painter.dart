@@ -32,11 +32,12 @@ class ChartPainter extends BaseChartPainter {
   final ChartStyle chartStyle;
   final bool hideGrid;
   final bool isDrawingModel;
-  List<double>? specifiedPrice;
-  List<UserGraphEntity> inactiveGraphs;
-  UserGraphEntity? activeGraph;
+  final List<double>? specifiedPrice;
+  final List<UserGraphEntity> userGraphs;
 
   final _graphDetectWidth = 5.0;
+  // 可编辑的用户图形
+  UserGraphEntity? _activeUserGraph;
   var _twinklPaint = Paint();
   var _realTimePaint = Paint()
     ..strokeWidth = 1.0
@@ -61,8 +62,7 @@ class ChartPainter extends BaseChartPainter {
     this.maDayList = const [5, 10, 20],
     this.specifiedPrice,
     this.isDrawingModel = false,
-    this.inactiveGraphs = const [],
-    this.activeGraph,
+    this.userGraphs = const [],
   })  : assert(bgColor == null || bgColor.length >= 2),
         super(chartStyle,
             datas: datas,
@@ -83,6 +83,7 @@ class ChartPainter extends BaseChartPainter {
       ..strokeWidth = 0.5
       ..style = PaintingStyle.stroke
       ..color = this.chartColors.selectBorderColor;
+    _activeUserGraph = userGraphs.firstWhereOrNull((grapa) => grapa.isActive);
   }
 
   @override
@@ -543,7 +544,7 @@ class ChartPainter extends BaseChartPainter {
   }
 
   // 计算移动手势的点在k线图中对应的index和价格
-  UserGraphRawValue? calculateMoveRawValue(Offset movePoint) {
+  UserGraphRawValue calculateMoveRawValue(Offset movePoint) {
     var index = getDoubleIndex(movePoint.dx / scaleX - mTranslateX);
     var dy = movePoint.dy;
     if (movePoint.dy < mMainRect.top) {
@@ -561,11 +562,9 @@ class ChartPainter extends BaseChartPainter {
     canvas.save();
     canvas.clipRect(mMainRect);
     //绘制没有交互的图形
-    inactiveGraphs.forEach((graph) {
+    userGraphs.forEach((graph) {
       _drawSingleGraph(canvas, graph);
     });
-    _drawSingleGraph(canvas, activeGraph);
-    // 绘制交互中的图形
     _drawGraphAnchorPoints(canvas);
     canvas.restore();
   }
@@ -603,7 +602,7 @@ class ChartPainter extends BaseChartPainter {
 
   // 绘制单个图形的锚点
   void _drawGraphAnchorPoints(Canvas canvas) {
-    activeGraph?.values.forEach((value) {
+    _activeUserGraph?.values.forEach((value) {
       double dx = translateXtoX(getXFromDouble(value.index));
       double dy = getMainY(value.price);
       canvas.drawCircle(Offset(dx, dy), _graphDetectWidth, _graphPaint);
@@ -674,23 +673,24 @@ class ChartPainter extends BaseChartPainter {
   }
 
   // 根据touch点，查找离它最近的非编辑中的图形
-  UserGraphEntity? detectInactiveGraphs(Offset touchPoint) {
-    if (inactiveGraphs.isEmpty) {
-      return null;
+  void detectUserGraphs(Offset touchPoint) {
+    if (userGraphs.isEmpty) {
+      return;
     }
-    var line = _detectSingleLine(touchPoint);
-    if (line != null) {
-      return line;
+    userGraphs.forEach((grap) => grap.isActive = false);
+    var detectedLine = _detectSingleLine(touchPoint);
+    if (detectedLine) {
+      return;
     }
-    var rectangle = _detectRectangle(touchPoint);
-    if (rectangle != null) {
-      return rectangle;
+    var detectedRectangle = _detectRectangle(touchPoint);
+    if (detectedRectangle) {
+      return;
     }
   }
 
-  // 根据touch点查找线形
-  UserGraphEntity? _detectSingleLine(Offset touchPoint) {
-    var singleLineGraphs = inactiveGraphs.where((graph) {
+  // 根据touch点查找线形，如果找到返回true
+  bool _detectSingleLine(Offset touchPoint) {
+    var singleLineGraphs = userGraphs.where((graph) {
       switch (graph.drawType) {
         case UserGraphType.segmentLine:
         case UserGraphType.rayLine:
@@ -701,9 +701,6 @@ class ChartPainter extends BaseChartPainter {
       }
     }).toList();
 
-    if (singleLineGraphs.isEmpty) {
-      return null;
-    }
     var minIndex = 0;
     var minDis = double.infinity;
     for (var i = 0; i < singleLineGraphs.length; i++) {
@@ -714,26 +711,33 @@ class ChartPainter extends BaseChartPainter {
       }
     }
     if (minDis < _graphDetectWidth) {
-      return singleLineGraphs[minIndex];
+      var graph = singleLineGraphs[minIndex];
+      graph.isActive = true;
+      _activeUserGraph = graph;
+      return true;
     }
+    return false;
   }
 
-  // 根据touch点查找矩形
-  UserGraphEntity? _detectRectangle(Offset touchPoint) {
-    return inactiveGraphs.reversed.firstWhereOrNull((graph) {
-      if (graph.drawType == UserGraphType.rectangle) {
-        return _isPointInRectangle(touchPoint, graph);
+  // 根据touch点查找矩形，如果找到返回true
+  bool _detectRectangle(Offset touchPoint) {
+    for (var graph in userGraphs.reversed) {
+      if (graph.drawType == UserGraphType.rectangle &&
+          _isPointInRectangle(touchPoint, graph)) {
+        graph.isActive = true;
+        _activeUserGraph = graph;
+        return true;
       }
-      return false;
-    });
+    }
+    return false;
   }
 
   // 根据press点，查找离它最近的锚点的index
   int? detectAnchorPointIndex(Offset touchPoint) {
-    if (activeGraph == null) {
+    if (_activeUserGraph == null) {
       return null;
     }
-    var anchorValues = activeGraph!.values;
+    var anchorValues = _activeUserGraph!.values;
     var minIndex = 0;
     var minDis = double.infinity;
     for (var i = 0; i < anchorValues.length; i++) {
@@ -749,17 +753,40 @@ class ChartPainter extends BaseChartPainter {
   }
 
   // 根据长按开始点计算编辑中图形是否可以移动
-  bool canMoveActiveGraph(Offset touchPoint) {
-    switch (activeGraph!.drawType) {
+  bool canBeginMoveActiveGraph(Offset touchPoint) {
+    if (_activeUserGraph == null) {
+      return false;
+    }
+    switch (_activeUserGraph!.drawType) {
       case UserGraphType.segmentLine:
       case UserGraphType.rayLine:
       case UserGraphType.straightLine:
-        var distance = _distanceToSingleLine(touchPoint, activeGraph!);
+        var distance = _distanceToSingleLine(touchPoint, _activeUserGraph!);
         return distance < _graphDetectWidth;
       case UserGraphType.rectangle:
-        return _isPointInRectangle(touchPoint, activeGraph!);
+        return _isPointInRectangle(touchPoint, _activeUserGraph!);
       default:
         return false;
+    }
+  }
+
+  bool canMoveActiveGraph() {
+    return _activeUserGraph != null;
+  }
+
+  void moveActiveGraph(UserGraphRawValue currentValue,
+      UserGraphRawValue nextValue, int? anchorIndex) {
+    // 计算和上一个点的偏移
+    var offset = Offset(nextValue.index - currentValue.index,
+        nextValue.price - currentValue.price);
+    if (anchorIndex == null) {
+      _activeUserGraph?.values.forEach((value) {
+        value.index += offset.dx;
+        value.price += offset.dy;
+      });
+    } else {
+      _activeUserGraph!.values[anchorIndex].index += offset.dx;
+      _activeUserGraph!.values[anchorIndex].price += offset.dy;
     }
   }
 

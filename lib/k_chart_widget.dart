@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:collection/collection.dart';
 import 'package:k_chart/chart_translations.dart';
 import 'package:k_chart/entity/draw_graph_entity.dart';
 import 'package:k_chart/extension/map_ext.dart';
@@ -31,12 +32,12 @@ class KChartWidgetController {
     _state = state as _KChartWidgetState?;
   }
 
-  void finishDrawUserGraphs() {
-    _state?.finishDrawUserGraphs();
+  void resetUserGraphs() {
+    _state?.resetUserGraphs();
   }
 
-  void clearActiveGraph() {
-    _state?.clearActiveGraph();
+  void removeActiveUserGraph() {
+    _state?.removeActiveUserGraph();
   }
 }
 
@@ -75,7 +76,7 @@ class KChartWidget extends StatefulWidget {
   // 需要绘制的图形
   final List<UserGraphEntity> userGraphs;
   // 完成绘制图形的回调
-  final Function(UserGraphEntity)? finishDrawUserGraphs;
+  final VoidCallback? finishDrawUserGraphs;
 
   KChartWidget(
     this.datas,
@@ -125,7 +126,7 @@ class _KChartWidgetState extends State<KChartWidget>
   }
 
   // 当前编辑中的图形
-  UserGraphEntity? _activeGraph;
+  UserGraphEntity? _drawingUserGraph;
   // 长按手势当前点的value值
   UserGraphRawValue? _currentPressValue;
   // 选中锚点在DrawGraphEntity的value数组中的索引
@@ -175,8 +176,7 @@ class _KChartWidgetState extends State<KChartWidget>
       fixedLength: widget.fixedLength,
       maDayList: widget.maDayList,
       specifiedPrice: [33100, 29000, 41000],
-      inactiveGraphs: widget.userGraphs,
-      activeGraph: _activeGraph,
+      userGraphs: widget.userGraphs,
     );
     return GestureDetector(
       onTapUp: (details) {
@@ -261,11 +261,6 @@ class _KChartWidgetState extends State<KChartWidget>
     );
   }
 
-  // 清空所有绘制的图形
-  void clearActiveGraph() {
-    _activeGraph = null;
-  }
-
   void _stopAnimation({bool needNotify = true}) {
     if (_controller != null && _controller!.isAnimating) {
       _controller!.stop();
@@ -281,9 +276,8 @@ class _KChartWidgetState extends State<KChartWidget>
       return;
     }
     if (widget.userDrawType == null) {
-      setState(() {
-        _activeGraph = painter.detectInactiveGraphs(touchPoint);
-      });
+      painter.detectUserGraphs(touchPoint);
+      setState(() {});
     } else {
       _drawUserGraph(painter, touchPoint);
     }
@@ -295,35 +289,70 @@ class _KChartWidgetState extends State<KChartWidget>
       case UserGraphType.rayLine:
       case UserGraphType.straightLine:
       case UserGraphType.rectangle:
-        if (_activeGraph == null) {
-          _activeGraph = UserGraphEntity(widget.userDrawType!, []);
-        }
-        if (_activeGraph!.values.length < 2) {
-          var value = painter.calculateTouchRawValue(touchPoint);
-          if (value == null) {
-            if (widget.outMainTap != null) {
-              widget.outMainTap!();
-            }
-          } else {
-            _activeGraph!.values.add(value);
-          }
-          notifyChanged();
-        } else {
-          finishDrawUserGraphs();
-        }
+        _drawTwoAnchorUserGraph(painter, touchPoint);
         break;
     }
   }
 
+  // 绘制只有两个锚点的图形
+  void _drawTwoAnchorUserGraph(ChartPainter painter, Offset touchPoint) {
+    if (_drawingUserGraph == null) {
+      _drawingUserGraph = UserGraphEntity(widget.userDrawType!, []);
+      _drawingUserGraph?.isActive = true;
+      widget.userGraphs.add(_drawingUserGraph!);
+    }
+    if (_drawingUserGraph!.values.length < 2) {
+      var value = painter.calculateTouchRawValue(touchPoint);
+      if (value == null) {
+        if (widget.outMainTap != null) {
+          widget.outMainTap!();
+        }
+      } else {
+        _drawingUserGraph!.values.add(value);
+      }
+      widget.userGraphs.last = _drawingUserGraph!;
+      notifyChanged();
+    } else {
+      finishDrawUserGraphs();
+    }
+  }
+
+  // 用户完成图形绘制
   void finishDrawUserGraphs() {
-    if (_activeGraph == null) {
+    if (_drawingUserGraph == null) {
       return;
     }
-    //length>=2才是有效图形
-    if (_activeGraph!.values.length >= 2) {
-      widget.finishDrawUserGraphs?.call(_activeGraph!);
+    // length>=2才是有效图形
+    if (_drawingUserGraph!.values.length >= 2) {
+      _drawingUserGraph = null;
+      widget.userGraphs.last.isActive = false;
+      widget.finishDrawUserGraphs?.call();
     }
-    clearActiveGraph();
+  }
+
+  // 重置用户绘制图形状态。对于绘制中的图形，如果是有效图形则将其保存
+  void resetUserGraphs() {
+    widget.userGraphs.forEach((graph) => graph.isActive = false);
+    if (_drawingUserGraph == null) {
+      return;
+    }
+    if (_drawingUserGraph!.values.length < 2) {
+      // 删除无效图形
+      widget.userGraphs.removeLast();
+    } else {
+      widget.userGraphs.lastOrNull?.isActive = false;
+    }
+    _drawingUserGraph = null;
+  }
+
+  // 移除绘制中的、编辑中的图形
+  void removeActiveUserGraph() {
+    if (_drawingUserGraph == null) {
+      widget.userGraphs.removeWhere((graph) => graph.isActive);
+    } else {
+      widget.userGraphs.removeLast();
+      _drawingUserGraph = null;
+    }
   }
 
   void _onDragChanged(bool isOnDrag) {
@@ -369,7 +398,7 @@ class _KChartWidgetState extends State<KChartWidget>
 
   // 长按开始移动正在编辑的图形
   void _beginMoveActiveGraph(ChartPainter painter, Offset position) {
-    if (_activeGraph == null || !painter.canMoveActiveGraph(position)) {
+    if (!painter.canBeginMoveActiveGraph(position)) {
       return;
     }
     _currentPressValue = painter.calculateTouchRawValue(position);
@@ -378,24 +407,11 @@ class _KChartWidgetState extends State<KChartWidget>
 
   // 移动正在编辑的图形
   void _moveActiveGraph(ChartPainter painter, Offset position) {
-    var nextValue = painter.calculateMoveRawValue(position);
-    if (_activeGraph == null ||
-        nextValue == null ||
-        _currentPressValue == null) {
+    if (_currentPressValue == null || !painter.canMoveActiveGraph()) {
       return;
     }
-    // 计算和上一个点的偏移
-    var offset = Offset(nextValue.index - _currentPressValue!.index,
-        nextValue.price - _currentPressValue!.price);
-    if (_pressAnchorIndex == null) {
-      _activeGraph?.values.forEach((value) {
-        value.index += offset.dx;
-        value.price += offset.dy;
-      });
-    } else {
-      _activeGraph!.values[_pressAnchorIndex!].index += offset.dx;
-      _activeGraph!.values[_pressAnchorIndex!].price += offset.dy;
-    }
+    var nextValue = painter.calculateMoveRawValue(position);
+    painter.moveActiveGraph(_currentPressValue!, nextValue, _pressAnchorIndex);
     _currentPressValue = nextValue;
     notifyChanged();
   }
